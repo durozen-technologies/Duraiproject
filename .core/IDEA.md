@@ -17,3 +17,5 @@ The application should support both **Android mobile devices** (primary platform
 6. **Reports & PDF Generation**: Purchase, Sales, Expense, and Party Ledger reports with PDF generation.
 
 The app must be simple, reliable, and prioritize fast data entry.
+
+- [2026-07-27] generate a unique bill for purchase as PUR-YYYY-000001 and sale as SAL-YYYY-000001, reset every new year.

@@ -28,6 +28,8 @@ class SaleBase(BaseModel):
     total_invoice_amount: float = 0.0
     cash_payment: float = 0.0
     upi_payment: float = 0.0
+    balance_amount: float = 0.0
+    is_locked: bool = False
 
 class SaleCreate(SaleBase):
     date: Optional[datetime_date] = None
@@ -35,6 +37,7 @@ class SaleCreate(SaleBase):
 class SaleResponse(SaleBase):
     id: UUID4
     date: datetime_date
+    bill_number: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -49,9 +52,33 @@ async def create_sale(sale_in: SaleCreate, db: AsyncSession = Depends(deps.get_d
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
         
+    # Generate unique bill_number for sale
+    sale_date = sale_in.date or datetime.now().date()
+    current_year = sale_date.year
+    prefix = f"SAL-{current_year}-"
+    
+    bill_query = await db.execute(
+        select(Sale.bill_number)
+        .where(Sale.bill_number.like(f"{prefix}%"))
+        .order_by(Sale.bill_number.desc())
+        .limit(1)
+    )
+    last_bill = bill_query.scalar_one_or_none()
+    
+    if last_bill:
+        try:
+            seq = int(last_bill.split("-")[-1]) + 1
+        except ValueError:
+            seq = 1
+    else:
+        seq = 1
+        
+    new_bill_number = f"{prefix}{seq:06d}"
+
     db_sale = Sale(
         party_id=sale_in.party_id,
-        date=sale_in.date or datetime.now().date(),
+        date=sale_date,
+        bill_number=new_bill_number,
         vehicle_number=sale_in.vehicle_number,
         driver_name=sale_in.driver_name,
         weight=sale_in.weight,
@@ -65,7 +92,8 @@ async def create_sale(sale_in: SaleCreate, db: AsyncSession = Depends(deps.get_d
         total_invoice_amount=sale_in.total_invoice_amount,
         cash_payment=sale_in.cash_payment,
         upi_payment=sale_in.upi_payment,
-        balance_amount=sale_in.total_invoice_amount - (sale_in.cash_payment + sale_in.upi_payment)
+        balance_amount=sale_in.total_invoice_amount - (sale_in.cash_payment + sale_in.upi_payment),
+        is_locked=sale_in.is_locked
     )
     db.add(db_sale)
     await db.flush()
@@ -100,6 +128,9 @@ async def update_sale(sale_id: UUID4, sale_in: SaleUpdate, db: AsyncSession = De
     db_sale = result.scalar_one_or_none()
     if not db_sale:
         raise HTTPException(status_code=404, detail="Sale not found")
+        
+    if db_sale.is_locked:
+        raise HTTPException(status_code=400, detail="Cannot edit a locked bill. Delete or edit the associated collection payment first.")
         
     result_party = await db.execute(select(Party).where(Party.id == db_sale.party_id))
     old_customer = result_party.scalar_one_or_none()
@@ -149,6 +180,7 @@ async def update_sale(sale_id: UUID4, sale_in: SaleUpdate, db: AsyncSession = De
     db_sale.cash_payment = sale_in.cash_payment
     db_sale.upi_payment = sale_in.upi_payment
     db_sale.balance_amount = sale_in.total_invoice_amount - (sale_in.cash_payment + sale_in.upi_payment)
+    db_sale.is_locked = sale_in.is_locked
 
     # Create new transaction if paid
     new_collected = sale_in.cash_payment + sale_in.upi_payment
@@ -177,6 +209,9 @@ async def delete_sale(sale_id: UUID4, db: AsyncSession = Depends(deps.get_db)):
     db_sale = result.scalar_one_or_none()
     if not db_sale:
         raise HTTPException(status_code=404, detail="Sale not found")
+
+    if db_sale.is_locked:
+        raise HTTPException(status_code=400, detail="Cannot delete a locked bill. Delete or edit the associated collection payment first.")
 
     result_party = await db.execute(select(Party).where(Party.id == db_sale.party_id))
     customer = result_party.scalar_one_or_none()

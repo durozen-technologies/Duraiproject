@@ -15,8 +15,10 @@ class Party(Base, BaseModelMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     mobile: Mapped[str | None] = mapped_column(String(50), nullable=True)
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     
     opening_balance: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    unpaid_opening_balance: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
     current_balance: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
     
     # Relationships

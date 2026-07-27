@@ -6,6 +6,8 @@ from .purchase import Purchase
 from .sale import Sale
 from .expense import ExpenseCategory, Expense
 from .transaction import PaymentTransaction
+from .payment_allocation import PaymentAllocation
+from .stock_override import StockOverride
 
 __all__ = [
     "Base",
@@ -17,5 +19,6 @@ __all__ = [
     "Sale",
     "ExpenseCategory",
     "Expense",
-    "PaymentTransaction"
+    "PaymentTransaction",
+    "PaymentAllocation"
 ]

@@ -253,3 +253,204 @@
 - [2026-07-24 11:40:00] Fixed a bug in NewSaleScreen where new sales were being saved to the database with a weight of 0. The UI mutation was incorrectly sending `net_weight` in the JSON payload, which the backend Pydantic `SaleCreate` schema dropped since it expects the field to be named `weight`. Changed the mutation payload key from `net_weight` to `weight`.
 
 - [2026-07-24 11:45:00] Fixed a backend bug in `create_sale` endpoint where `birds_per_box` and `actual_birds` were not being assigned to the new `Sale` model instance when saving to the database, resulting in them being stored as `0`. Added mapping for these two fields in `sales.py`.
+
+- [2026-07-24 13:00:00] Fixed a Git tracking issue where `backend` and `frontend_mobile` were nested as independent `.git` submodules. Deleted the nested `.git` folders and pushed the entire unified repository to GitHub.
+
+- [2026-07-24 13:10:00] Added Party and Date filtering to the Purchases and Sales screens. Modified `PurchaseBase` and `SaleBase` backend schemas to expose `balance_amount`. Updated frontend UI to fetch `parties` and provide dual Picker dropdowns for selecting a specific Party and a Date Range ("Today" default). Added dynamically calculated summary cards at the top of the screens displaying "Total Amount" and "Balance Due" for the filtered bills.
+
+- [2026-07-24 13:17:00] Enhanced the filters on Purchases and Sales screens by adding "Party" and "Date" labels above the Pickers for better UI visibility. Added a "Custom" Date Filter option which dynamically renders two DatePicker buttons (Start Date and End Date) using `@react-native-community/datetimepicker` and filters the bills accordingly.
+
+- [2026-07-24 13:20:00] Fixed a UI layout issue on mobile where Picker text was cut off vertically on Android. Increased the wrapper and Picker heights to 48px, darkened and enlarged the labels for better contrast, and added subtle borders to the Picker containers.
+
+- [2026-07-24 13:23:00] Filtered the Party dropdowns based on context: the Purchases screen now only shows parties of type `SUPPLIER`, while the Sales screen only shows parties of type `PURCHASER`.
+
+- [2026-07-24 13:31:00] Fixed a lingering UI cutoff issue with the Pickers where the bottom 20% of the text was still hidden. Removed the fixed height (`h-12` and `style={{ height: 48 }}`) constraints entirely, allowing the native Android dropdown to size itself correctly without being clipped by `overflow-hidden`.
+
+- [2026-07-24 13:33:00] Fixed a deprecation warning from `@react-native-community/datetimepicker` regarding the `onChange` prop in both `PurchasesScreen.tsx` and `SalesScreen.tsx`. Replaced `onChange` with the newly required `onValueChange` and `onDismiss` props.
+
+- [2026-07-24 14:46:00] Implemented Party Editing and Active/Disable Toggle feature. Added `is_active` to `parties` table via Alembic migration. Created `PUT /parties/{id}` API endpoint. Added a `PartyDetailsModal` to preview and edit a party's details and status. Updated `PartiesScreen` to sort active parties to the top and visually fade disabled parties. Updated all dropdown Pickers in Sales/Purchases to filter out disabled parties and correctly align Purchaser/Supplier roles.
+
+- [2026-07-24 14:48:00] Updated the `Total Balance` calculation on the `PurchasesScreen` and `SalesScreen` to include the selected party's `opening_balance` when a specific party is selected from the dropdown filter.
+
+- [2026-07-24 15:05:00] Added the ability to edit a party's `opening_balance` within the `PartyDetailsModal`. Backend automatically adjusts the `current_balance` proportionally when the `opening_balance` is changed.
+
+- [2026-07-24 15:15:00] Corrected the role filters for Purchases and Sales based on the user's explicit instruction. Purchases now filter for `PURCHASER` type parties, and Sales filter for `SUPPLIER` type parties. Updated `PurchasesScreen`, `SalesScreen`, `NewPurchaseScreen`, and `NewSaleScreen` accordingly.
+
+- [2026-07-24 15:20:00] Made `PartyDetailsModal` keyboard-aware by wrapping the content in a `KeyboardAvoidingView` and `ScrollView`. Moved the "Save Changes" button inside the `ScrollView` so it stays firmly at the bottom of the content (non-floating) as requested by the user.
+# #   [ 2 0 2 6 - 0 7 - 2 5   0 9 : 2 7 : 0 0 ]   C o l l e c t i o n   P a y m e n t   I m p l e m e n t a t i o n  
+ -   U s e r   r e q u e s t e d   t o   a d d   a   C o l l e c t i o n   P a y m e n t   q u i c k   a c t i o n   i n   D a s h b o a r d   a n d   r e m o v e   E x p e n s e s / C a t e g o r i e s .  
+ -   I m p l e m e n t e d   C o l l e c t i o n P a y m e n t S c r e e n   w i t h   S u p p l i e r s   a n d   P u r c h a s e r s   t a b s .  
+ -   C r e a t e d   b a c k e n d   P O S T   / p a y m e n t s / c o l l e c t i o n   e n d p o i n t   w i t h   F I F O   b i l l   a p p l i c a t i o n   l o g i c   a n d   o v e r p a y m e n t   v a l i d a t i o n .  
+ -   D a s h b o a r d   s c r e e n   u p d a t e d .  
+  
+ ### [2026-07-25 11:50:00] UI Overhaul for Purchases and Sales
+- Applied frontend-ui-engineering standards to PurchasesScreen and SalesScreen.
+- Added Party Name visibility in the list cards.
+- Refined card styling with status pills (PAID/DUE) and colored icons.
+- Upgraded Summary Cards with premium gradients/shadows.
+- Created robust empty states with icons and call-to-action buttons.
+### [2026-07-25 12:03:00] Pending and Paid Filters
+- Added "Pending" and "Paid" filter chips to PurchasesScreen and SalesScreen to allow filtering transactions by their balance_amount.
+- Removed fixed heights from Picker components to fix text clipping issue ("All Darties") on Android devices.
+### [2026-07-25 12:06:00] Compact Summary UI layout
+- Moved Status Chips (All, Pending, Paid) to sit directly below the green Summary Card in Purchases and Sales screens.
+- Compacted the Summary Card layout by reducing internal padding, shrinking font sizes, and tightening element spacing to restore vertical screen real estate.
+### [2026-07-25 12:08:00] Status Filter Bugfix
+- Fixed a bug in PurchasesScreen and SalesScreen where selecting a Date filter bypassed the Status (Pending/Paid) filter logic.
+- Refactored the useMemo filter functions to evaluate Date filters negatively (returning false early on mismatch) so that they properly fall through to evaluate the Status filter.
+### [2026-07-25 12:13:00] Collection Payment UI Tweak
+- Updated CollectionPaymentScreen to center the "Bill Bal" text in the payment modal when the selected party does not have an opening balance.
+### [2026-07-25 12:15:00] Total Paying indicator in Collection Payment
+- Added a dynamic "Total Paying" green banner above the Submit button in the Collection Payment modal that sums the Cash and UPI inputs in real-time.
+### [2026-07-25 12:18:00] Global Date Formatting Standardization
+- Created a global utility function formatDateToDDMMYYYY to standardize date formatting across the entire app.
+- Updated CollectionPaymentScreen, PurchasesScreen, SalesScreen, NewPurchaseScreen, and NewSaleScreen to use this utility, ensuring all dates consistently display in DD/MM/YYYY format instead of US MM/DD/YYYY format or raw backend YYYY-MM-DD.
+- Updated CollectionPaymentScreen, PurchasesScreen, SalesScreen, NewPurchaseScreen, and NewSaleScreen to use this utility, ensuring all dates consistently display in DD/MM/YYYY format instead of US MM/DD/YYYY format or raw backend YYYY-MM-DD.
+
+### [2026-07-25 11:20:00] Strict Ledger Protection Implementation
+ - Implemented PaymentAllocation junction table.
+ - Updated backend payments, purchases, and sales endpoints to strictly lock bills if payments have been allocated to them.
+ - Added a Payment History UI to the PartyDetailsModal allowing users to delete a collection payment to unlock bills.
+ - Added an `is_locked` flag to Purchase and Sale models and schema.
+ - Completely disabled Edit capabilities on frontend NewPurchaseScreen and NewSaleScreen if a Collection Payment is applied to the bill, enforcing a strictly read-only view with a locked warning banner.
+
+### [2026-07-26 20:55:00] NotNullViolationError Fix
+- Fixed a 500 error during purchase creation caused by the `is_locked` column missing from the SQLAlchemy models. Added `is_locked` to `Purchase` and `Sale` models and Pydantic schemas with a default of `False` so it satisfies the database constraint.
+
+### [2026-07-26 21:05:00] Strict Bill Locking Enforcement
+- Prevented users from entering Edit mode on locked bills on the frontend by replacing the hide logic with an alert prompt instructing them to delete the collection payment first.
+- Enforced strict locking on the backend API side by rejecting `PUT` and `DELETE` requests for `Purchase` and `Sale` models with a 400 Bad Request if the `is_locked` flag is true.
+[2026-07-26 21:31:06] Fixed locking bug by properly setting is_locked = True in payments.py. Implemented PaymentAllocation model. Added GET, DELETE, and PUT endpoints for payments. Added History tab to CollectionPaymentScreen.tsx.
+
+[2026-07-26 21:40:09] Updated payment history API to accept from_date and to_date. Refactored CollectionPaymentScreen.tsx to include a date range picker (From/To). Moved Delete button inside the Edit Modal to improve UI per frontend engineering skill.
+[2026-07-26 16:30:00] Fixed math error in collection payment PUT API by replacing incremental current_balance tracking with an absolute recalculation from unpaid bills to guarantee consistency. 
+-   2 0 2 6 - 0 7 - 2 6 T 2 2 : 0 4 : 0 0 + 0 5 : 3 0 :   F i x e d   t h e   c o l l e c t i o n   p a y m e n t   e d i t   b u g   i n   b a c k e n d / a p p / a p i / r o u t e s / p a y m e n t s . p y   w h e r e   u p d a t i n g   a   c o l l e c t i o n   c r e a t e d   a   n e w   t r a n s a c t i o n   i n s t e a d   o f   e d i t i n g   t h e   e x i s t i n g   o n e .   F i x e d   c a l c u l a t i o n   l o g i c   s o   t h e   b a l a n c e   a c c u r a t e l y   r e f l e c t s   t h e   e d i t e d   a m o u n t   w i t h o u t   b u g s   c a u s e d   b y   m i s s i n g   a u t o f l u s h e s .  
+ -   2 0 2 6 - 0 7 - 2 6 T 2 2 : 3 9 : 0 0 + 0 5 : 3 0 :   F i x e d   u n l o c k i n g   l o g i c   i n   d e l e t e _ c o l l e c t i o n _ p a y m e n t   a n d   u p d a t e _ c o l l e c t i o n _ p a y m e n t .   I t   p r e v i o u s l y   r e l i e d   o n   c a s h _ p a y m e n t   +   u p i _ p a y m e n t   < =   0 ,   w h i c h   f a i l e d   i f   t h e   u s e r   m a d e   a n   u p f r o n t   p a y m e n t   o n   t h e   b i l l   i t s e l f .   N o w   i t   c o r r e c t l y   c h e c k s   i f   a n y   P a y m e n t A l l o c a t i o n s   r e m a i n   f o r   t h a t   b i l l .   A l s o   r a n   a   s c r i p t   t o   u n l o c k   1   p u r c h a s e   a n d   1   s a l e   t h a t   w e r e   s t u c k   i n   t h e   l o c k e d   s t a t e .  
+ -   2 0 2 6 - 0 7 - 2 6 T 2 3 : 1 4 : 5 0 + 0 5 : 3 0 :   R e d e s i g n e d   D a s h b o a r d   Q u i c k   A c t i o n s   i n t o   a   t w o - c o l u m n   g r i d   ( C o l l e c t i o n   P a y m e n t   a n d   R e p o r t s ) .   C r e a t e d   b l a n k   R e p o r t s S c r e e n . t s x .   R e n a m e d   F l o c k   M o v e m e n t   t o   S t o c k ,   a d d e d   b a c k e n d   S t o c k O v e r r i d e   m o d e l ,   d b   m i g r a t i o n ,   a n d   e n d p o i n t s   t o   t r a c k   m a n u a l   e d i t s   t o   P u r c h a s e   C o u n t   a n d   P u r c h a s e   W e i g h t   w i t h o u t   m u t a t i n g   r a w   p u r c h a s e   b i l l s .   I m p l e m e n t e d   U I   f o r   e d i t i n g   a n d   v i e w i n g   e d i t   h i s t o r y .  
+ -   2 0 2 6 - 0 7 - 2 6 T 2 3 : 2 9 : 0 0 + 0 5 : 3 0 :   A d d e d   R e f r e s h   b u t t o n s   a n d   p u l l - t o - r e f r e s h   ( R e f r e s h C o n t r o l )   f u n c t i o n a l i t y   t o   t h e   D a s h b o a r d   a n d   E x p e n s e s   s c r e e n s   i n   t h e   f r o n t e n d .  
+ -   2 0 2 6 - 0 7 - 2 6 T 2 3 : 3 4 : 1 7 + 0 5 : 3 0 :   F i x e d   a n   i s s u e   w h e r e   n e w   e x p e n s e   c a t e g o r i e s   w o u l d n ' t   i m m e d i a t e l y   a p p e a r   o n   t h e   E x p e n s e s   s c r e e n   b y   p r o p e r l y   i n v a l i d a t i n g   t h e   ' a c t i v e E x p e n s e C a t e g o r i e s '   q u e r y   a f t e r   c r e a t i n g   o r   u p d a t i n g   a   c a t e g o r y   i n   E x p e n s e C a t e g o r i e s S c r e e n . t s x .  
+ -   2 0 2 6 - 0 7 - 2 6 T 2 3 : 4 0 : 2 1 + 0 5 : 3 0 :   R e m o v e d   t h e   O u t s t a n d i n g   s e c t i o n   f r o m   t h e   D a s h b o a r d S c r e e n . t s x   a s   r e q u e s t e d .  
+ -   2 0 2 6 - 0 7 - 2 6 T 2 3 : 4 8 : 2 4 + 0 5 : 3 0 :   U p d a t e d   D a s h b o a r d   O u t s t a n d i n g   s e c t i o n   t o   f e t c h   a c t u a l   s u m   o f   c u r r e n t _ b a l a n c e   f o r   P u r c h a s e r   ( d u e s )   a n d   S u p p l i e r   ( p a y a b l e s )   r a t h e r   t h a n   d i s p l a y i n g   s t a t i c   p l a c e h o l d e r   v a l u e s .  
+ -   2 0 2 6 - 0 7 - 2 6 T 2 3 : 5 6 : 4 8 + 0 5 : 3 0 :   C r e a t e d   a n   i m p l e m e n t a t i o n   p l a n   f o r   a d d i n g   D a t e   F i l t e r i n g   t o   t h e   D a s h b o a r d .  
+ -   2 0 2 6 - 0 7 - 2 7 T 0 0 : 1 0 : 3 6 + 0 5 : 3 0 :   F i x e d   d a t e t i m e   o f f s e t   m i s m a t c h   e r r o r   i n   b a c k e n d   d a s h b o a r d   A P I   w h e n   f i l t e r i n g   b y   d a t e .   M a d e   t h e   p a r s e d   d a t e s   o f f s e t - n a i v e   u s i n g   . r e p l a c e ( t z i n f o = N o n e )   t o   m a t c h   a s y n c p g   e x p e c t a t i o n s .  
+ -   2 0 2 6 - 0 7 - 2 7 T 0 0 : 1 2 : 2 7 + 0 5 : 3 0 :   F i x e d   A t t r i b u t e E r r o r   i n   d a s h b o a r d   s t a t s   e n d p o i n t   b y   s w i t c h i n g   t o   c o r r e c t   E x p e n s e . s p e n t _ a t   c o l u m n   a n d   u s i n g   t i m e z o n e - a w a r e   d a t e t i m e s   f o r   E x p e n s e   q u e r i e s .  
+ 
+### [2026-07-27 09:47:00] Add Auto-generating Unique Bill Numbers
+- User requested adding unique bill numbers for purchases (PUR-YYYY-XXXXXX) and sales (SAL-YYYY-XXXXXX).
+- Modified Purchase and Sale models in ackend/app/models/ to include ill_number.
+- Generated and applied alembic migration.
+- Updated create_purchase in purchases.py and create_sale in sales.py to auto-generate the sequential bill number.
+- Updated get_payment_history in payments.py to join with PaymentAllocation to fetch llocated_bills.
+- Updated frontend screens (PurchasesScreen.tsx, SalesScreen.tsx, NewPurchaseScreen.tsx, NewSaleScreen.tsx, CollectionPaymentScreen.tsx) to display the bill numbers.
+
+### [2026-07-27 10:01:00] Move bill_number above date column in Purchases and Sales lists
+- User requested to move the bill number in the purchase and sale pages above the date column.
+- Modified PurchasesScreen.tsx and SalesScreen.tsx layout to move the bill_number text node above the row containing the date and bird count.
+
+### [2026-07-27 10:16:00] Implement Granular Bill Allocation Display
+- User requested showing specific bills and exact amounts applied to them in Collection Payment history, and a reference list of pending bills when selecting a party.
+- Updated payments.py -> get_payment_history to join with PaymentAllocation and extract specific llocated_cash and llocated_upi per bill, and handle OPENING_BALANCE vs BILL.
+- Added GET /parties/{party_id}/pending-bills endpoint in parties.py to fetch sorted unpaid purchases, sales, and opening balance.
+- Updated CollectionPaymentScreen.tsx history render to map out llocations array (Bill/Opening Balance + Amount).
+- Added useQuery in CollectionPaymentScreen.tsx to fetch pending bills and rendered a reference list inside the payment modal showing Total Amount crossed out and Balance Due in red.
+
+### [2026-07-27 10:22:00] Database Reset
+- User requested a database reset.
+- Alembic downgrade failed due to NotNullViolationError on payment_allocations table during migration rollback.
+- Executed a PostgreSQL script to drop the public schema entirely and recreate it.
+- Ran lembic upgrade head to recreate all tables fresh, resulting in an empty, clean database.
+
+### [2026-07-27 10:37:00] Remove Pending Bills List UI
+- User requested to remove the 'Pending Bills (FIFO Allocation)' list from the payment modal.
+- Removed the corresponding UI section from CollectionPaymentScreen.tsx.
+
+### [2026-07-27 10:46:00] Disable Opening Balance Edit if Transactions Exist
+- User requested to disable editing a party's opening balance if they have already started purchases or sales.
+- Modified PartyDetailsModal.tsx to conditionally disable the opening balance TextInput if the party's current balance or unpaid opening balance diverges from their opening balance.
+- Added a warning message explaining why it is locked.
+
+### [2026-07-27 11:15:00] Show Original Bill Total for Pending Bills in Collection Payment
+- User requested to see the sum of the original invoice amounts for only the currently pending (due) bills.
+- Modified parties.py GET /parties/ to calculate 	otal_pending_invoice_amount by summing purchase_amount and 	otal_invoice_amount from bills where alance_amount > 0 for each party.
+- Updated CollectionPaymentScreen.tsx to display this crossed-out Total Bill amount right above the Balance Due.
+
+### [2026-07-27 11:22:00] Remove Strikeout from Total Bill
+- User requested to remove the strikeout (line-through) UI styling from the 'Total Bill' amount on the party cards in the Collection Payment screen.
+- Modified CollectionPaymentScreen.tsx to remove the line-through class.
+-   [ 2 0 2 6 - 0 7 - 2 7   1 1 : 3 5 : 2 7 ]   R e f a c t o r e d   a l l   s c r e e n s   ( N e w S a l e ,   N e w P u r c h a s e ,   N e w P a r t y ,   E x p e n s e s ,   E x p e n s e C a t e g o r i e s ,   D a s h b o a r d ,   C o l l e c t i o n P a y m e n t ,   P a r t y D e t a i l s M o d a l )   t o   u s e   i n l i n e   e r r o r / s u c c e s s   m e s s a g e s   i n s t e a d   o f   A l e r t . a l e r t .   C r e a t e d   a n d   i n t e g r a t e d   C o n f i r m M o d a l . t s x   f o r   d e l e t e   a c t i o n s .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 1 : 5 1 : 2 7 ]   F i x e d   N e w P a r t y S c r e e n . t s x   b y   a d d i n g   t h e   J S X   b l o c k   t o   r e n d e r   t h e   e r r o r M s g   a n d   s u c c e s s M s g   s t a t e   v a r i a b l e s .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 1 : 5 4 : 2 7 ]   M o v e d   e r r o r   m e s s a g e   t o   a p p e a r   d i r e c t l y   u n d e r n e a t h   t h e   N a m e   f i e l d   i n   N e w P a r t y S c r e e n . t s x   a n d   h i g h l i g h t e d   t h e   f i e l d   b o r d e r   i n   r e d .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 1 : 5 6 : 2 7 ]   M a d e   N a m e ,   M o b i l e   N u m b e r ,   a n d   A d d r e s s   r e q u i r e d   f i e l d s   i n   N e w P a r t y S c r e e n . t s x   a n d   a d d e d   i n d i v i d u a l   e r r o r   v a l i d a t i o n   b e n e a t h   e a c h   f i e l d .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 1 : 5 8 : 2 7 ]   A d d e d   1 0 - d i g i t   s t r i c t   v a l i d a t i o n   f o r   m o b i l e   n u m b e r   i n   N e w P a r t y S c r e e n . t s x ,   r e s t r i c t e d   i n p u t   t o   n u m b e r s   o n l y ,   a n d   l i m i t e d   m a x L e n g t h   t o   1 0 .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 2 : 0 2 : 2 7 ]   M o d i f i e d   O p e n i n g   B a l a n c e   i n   N e w P a r t y S c r e e n . t s x   t o   h a v e   a n   e m p t y   i n i t i a l   s t a t e   i n s t e a d   o f   ' 0 ' ,   m a r k e d   i t   a s   a   r e q u i r e d   f i e l d ,   a n d   a d d e d   s p e c i f i c   v a l i d a t i o n   f o r   i t .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 2 : 0 4 : 2 7 ]   R e m o v e d   t h e   n e g a t i v e   v a l u e   h i n t   f o r   o p e n i n g   b a l a n c e   a n d   r e s t r i c t e d   t h e   i n p u t   t o   p o s i t i v e   n u m b e r s   ( 0 - 9   a n d   p e r i o d )   i n   b o t h   N e w P a r t y S c r e e n . t s x   a n d   P a r t y D e t a i l s M o d a l . t s x .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 2 : 0 8 : 2 7 ]   R e m o v e d   s u c c e s s   m e s s a g e   f r o m   N e w P a r t y S c r e e n . t s x   a n d   p a s s e d   i t   a s   a   n a v i g a t i o n   p a r a m e t e r   t o   P a r t i e s S c r e e n . t s x ,   d i s p l a y i n g   i t   t h e r e   a s   a   b a n n e r   w h i c h   c l e a r s   a f t e r   3   s e c o n d s .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 2 : 1 2 : 2 7 ]   F i x e d   R e a c t   N a v i g a t i o n   e r r o r   i n   N e w P a r t y S c r e e n . t s x   b y   c o r r e c t l y   r o u t i n g   t h e   n a v i g a t i o n   p a y l o a d   t o   t h e   n e s t e d   ' P a r t i e s '   s c r e e n   i n s i d e   ' M a i n T a b s ' .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 2 : 1 3 : 2 7 ]   C h a n g e d   s u c c e s s   m e s s a g e   i n   P a r t i e s S c r e e n . t s x   t o   r e n d e r   a s   a   f l o a t i n g   t o a s t   o v e r l a y   a t   t h e   b o t t o m   o f   t h e   s c r e e n   i n s t e a d   o f   a   s t a t i c   b a n n e r ,   a n d   r e d u c e d   i t s   v i s i b i l i t y   d u r a t i o n   t o   2   s e c o n d s .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 2 : 1 5 : 2 7 ]   A d j u s t e d   t h e   t o a s t   v i s i b i l i t y   t i m e o u t   i n   P a r t i e s S c r e e n . t s x   t o   e x a c t l y   1 . 5   s e c o n d s   a s   r e q u e s t e d .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 2 : 2 0 : 2 7 ]   F i x e d   t h e   t o a s t   v i s i b i l i t y   i s s u e   i n   P a r t i e s S c r e e n . t s x   w h e r e   t h e   R e a c t   N a v i g a t i o n   r o u t e   p a r a m e t e r   c l e a n u p   w a s   p r e m a t u r e l y   a b o r t i n g   t h e   t i m e o u t .   S e p a r a t e d   t h e   t i m e o u t   i n t o   i t s   o w n   u s e E f f e c t   w a t c h i n g   t h e   s u c c e s s M s g   s t a t e .   U p d a t e d   t o a s t   b a c k g r o u n d   c o l o r   t o   S u c c e s s G r e e n   ( # 0 5 9 6 6 9 ) .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 2 : 2 4 : 2 7 ]   F i x e d   a   l o g i c   b u g   w h e r e   N e w P u r c h a s e S c r e e n   a n d   N e w S a l e S c r e e n   h a d   s w a p p e d   l a b e l s   a n d   p a r t y   t y p e   f i l t e r s .   P u r c h a s e s   n o w   c o r r e c t l y   s e l e c t   f r o m   S U P P L I E R s   a n d   S a l e s   s e l e c t   f r o m   P U R C H A S E R s .   A l s o   e n s u r e d   t h e   P i c k e r   d r o p d o w n   c o r r e c t l y   d e f a u l t s   t o   a n   e m p t y   ' S e l e c t   a . . . '   p r o m p t .  
+ -   [ 2 0 2 6 - 0 7 - 2 7   1 2 : 3 0 : 2 6 ]   R e m o v e d   a u t o - s e l e c t i o n   o f   t h e   f i r s t   P u r c h a s e r / S u p p l i e r   i n   N e w P u r c h a s e S c r e e n   s o   i t   c o r r e c t l y   d e f a u l t s   t o   ' S e l e c t   a   P u r c h a s e r / S u p p l i e r . . . '   p r o m p t   i n s t e a d   o f   s e l e c t i n g   t h e   f i r s t   p a r t y   i n i t i a l l y .  
+ 
+### [2026-07-27 12:39:12] Replace 'Today' dashboard filter with specific DatePicker
+- User requested to be able to pick a specific single date on the dashboard instead of just having 'Today'.
+- Modified DashboardScreen.tsx to replace the 'Today' filter option with a 'Single Day' DatePicker implementation that defaults to today but allows selecting any specific date.
+
+### [2026-07-27 12:42:20] Convert Custom Date Range to DatePicker
+- User requested to use DatePicker components for the Custom Date Range filter instead of typing dates into text boxes.
+- Updated DashboardScreen.tsx's custom modal to render the native DateTimePicker for mobile and <input type="date"> for web.
+- Removed manual regex validation since dates are securely parsed from DatePicker components.
+
+### [2026-07-27 12:44:36] Remove unused Date Filters from Dashboard
+- User requested to remove the 'This Week', 'This Month', and 'This Year' filters from the dashboard.
+- Updated DashboardScreen.tsx to remove these filters from the UI.
+- Updated the default filterType state from 'This Month' to 'Single Day'.
+- Cleaned up the getDateRange function to remove the unused filter logic.
+
+### [2026-07-27 12:47:35] Show selected dates in Custom filter button
+- User requested the Custom filter button to display the selected date range after applying the filter.
+- Modified DashboardScreen.tsx to render '{appliedCustomStart} to {appliedCustomEnd}' when the filter is active.
+
+### [2026-07-27 12:49:27] Show 'Today' label dynamically in Single Day picker
+- User requested the date picker button to show the word 'Today' instead of the formatted date when today's date is selected.
+- Modified DashboardScreen.tsx to conditionally render 'Today' if selectedDate.toDateString() === new Date().toDateString().
+
+### [2026-07-27 12:54:45] Fix 'Today' label rendering on Web DatePicker
+- User reported that the 'Today' dynamic label was not showing on the Web platform.
+- Refactored the DashboardScreen.tsx web input to use an invisible <input type="date"> overlay. This allows the custom 'Today' Text component to be visible while retaining the native HTML date picker behavior on click.
+
+### [2026-07-27 12:58:23] Move Outstanding Section
+- User requested the Outstanding section (Purchaser Dues and Supplier Payables) to be moved below the Stock movement section.
+- Swapped the UI block positions in DashboardScreen.tsx.
+
+### [2026-07-27 13:00:47] Apply Pending Bill breakdown to Parties UI
+- User requested the detailed balance breakdown ('Pending Bill' and 'Balance Due') from the Collection Payment screen to be added to the Parties screen.
+- Updated PartiesScreen.tsx to match the breakdown logic and UI presentation of CollectionPaymentScreen.tsx.
+
+### [2026-07-27 13:06:24] Implemented search bars
+- User requested a search bar in the Collection Payment screen (to search parties by name or mobile).
+- User requested search bars in the Purchases and Sales screens (to search by bill number).
+- Utilized rontend-ui-engineering standards to build accessible, polished native UI input boxes with Lucide icons.
+- Filter logic applied via React Native states (searchQuery) and array ilter() prior to rendering.
+- Filter logic applied via React Native states (searchQuery) and array ilter() prior to rendering.
+
+### [2026-07-27 14:32:00] Implemented PDF Report Generation
+- User requested to generate a Purchase PDF report matching the Purchase.html layout from the Dashboard.
+- Rewrote the implementation plan mapping each column of Purchase.html to the exact columns in the purchases and parties database tables.
+- Implemented eportlab in the backend ( ackend/app/api/routes/reports.py) to generate the exact PDF layout.
+- Updated ReportsScreen.tsx to include Date Pickers, a dropdown for specific or ALL purchasers, and native file download capabilities.
+
+### [2026-07-27 16:20:00] Fix expo-file-system deprecation
+- Fixed the warning and error `Method downloadAsync imported from "expo-file-system" is deprecated` by updating the import in `ReportsScreen.tsx` to use `expo-file-system/legacy`.
+
+### [2026-07-27 16:35:00] Fix PDF Layout and Rupee Symbol
+- Replaced the unsupported Rupee Unicode symbol (`₹`) with `Rs.` in `backend/app/api/routes/reports.py` so that Reportlab's standard Helvetica font can render it properly without showing a black square (`■`).
+- Adjusted PDF page margins, scaled down the font sizes (headers to 9, body to 8), decreased padding, and tweaked column widths so that long text (like Vehicle No, Bill No, and Amounts) no longer overflows or gets squished.
+
+### [2026-07-27 16:42:00] Refine PDF Layout
+- Reduced header font size to 8 (matching the body) and removed the space in `Weighbridge\nWeight(Kg)` to fix overlapping headers.
+- Removed the `Rs.` prefix from individual row values to save horizontal space, leaving `(Rs.)` only in the column headers (Rate, Amount, Paid Cash, Paid UPI, Balance).
+- Adjusted column widths slightly to ensure "Weighbridge Weight(Kg)" gets enough room (increased from 6% to 7%).
+
+### [2026-07-27 16:48:00] Dynamic Average Weight Calculation
+- Updated the Purchase Report generation in `reports.py` to dynamically calculate the `Avg Wt` for each row as `Net Weight / Total Birds` rather than relying on the static database column, preventing `0.00` values from showing up in the exported PDF.

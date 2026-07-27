@@ -32,7 +32,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_expense_categories_id'), 'expense_categories', ['id'], unique=False)
     op.create_table('parties',
     sa.Column('id', sa.Uuid(), nullable=False),
-    sa.Column('type', sa.Enum('CUSTOMER', 'SUPPLIER', name='partytype'), nullable=False),
+    sa.Column('type', sa.Enum('PURCHASER', 'SUPPLIER', name='partytype'), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('mobile', sa.String(length=50), nullable=True),
     sa.Column('address', sa.String(length=500), nullable=True),

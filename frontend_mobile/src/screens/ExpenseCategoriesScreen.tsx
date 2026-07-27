@@ -16,6 +16,9 @@ export default function ExpenseCategoriesScreen() {
   const [name, setName] = useState('');
   const [sortOrder, setSortOrder] = useState('0');
   const [isActive, setIsActive] = useState(true);
+  
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const { data: categories, isLoading, error } = useQuery({
     queryKey: ['expenseCategories'],
@@ -26,10 +29,14 @@ export default function ExpenseCategoriesScreen() {
     mutationFn: (newCat: any) => createExpenseCategory(newCat.name, newCat.sortOrder, newCat.isActive),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenseCategories'] });
-      closeModal();
+      queryClient.invalidateQueries({ queryKey: ['activeExpenseCategories'] });
+      setErrorMsg('');
+      setSuccessMsg('Category created successfully');
+      setTimeout(() => closeModal(), 1500);
     },
     onError: (err: any) => {
-      Alert.alert('Error', err?.response?.data?.detail || 'Failed to create category');
+      setSuccessMsg('');
+      setErrorMsg(err?.response?.data?.detail || 'Failed to create category');
     }
   });
 
@@ -37,10 +44,14 @@ export default function ExpenseCategoriesScreen() {
     mutationFn: (updateData: any) => updateExpenseCategory(updateData.id, updateData.updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenseCategories'] });
-      closeModal();
+      queryClient.invalidateQueries({ queryKey: ['activeExpenseCategories'] });
+      setErrorMsg('');
+      setSuccessMsg('Category updated successfully');
+      setTimeout(() => closeModal(), 1500);
     },
     onError: (err: any) => {
-      Alert.alert('Error', err?.response?.data?.detail || 'Failed to update category');
+      setSuccessMsg('');
+      setErrorMsg(err?.response?.data?.detail || 'Failed to update category');
     }
   });
 
@@ -63,13 +74,16 @@ export default function ExpenseCategoriesScreen() {
   const closeModal = () => {
     setModalVisible(false);
     setEditingId(null);
+    setErrorMsg('');
+    setSuccessMsg('');
   };
 
   const handleSave = () => {
     if (!name.trim()) {
-      Alert.alert('Validation Error', 'Category name is required');
+      setErrorMsg('Category name is required');
       return;
     }
+    setErrorMsg('');
     const orderNum = parseInt(sortOrder) || 0;
     
     if (editingId) {
@@ -127,11 +141,23 @@ export default function ExpenseCategoriesScreen() {
       <Modal visible={modalVisible} transparent={true} animationType="fade" onRequestClose={closeModal}>
         <View className="flex-1 justify-center bg-black/50 p-4">
           <View className="bg-white rounded-2xl p-6">
-            <Text className="text-xl font-bold text-gray-900 mb-6 text-center">
+            <Text className="text-xl font-bold text-gray-900 mb-2 text-center">
               {editingId ? 'Edit Category' : 'New Category'}
             </Text>
+
+            {errorMsg ? (
+              <View className="mb-2 mt-2 bg-red-50 p-2 rounded border border-red-200">
+                <Text className="text-red-600 text-sm font-semibold text-center">{errorMsg}</Text>
+              </View>
+            ) : null}
+
+            {successMsg ? (
+              <View className="mb-2 mt-2 bg-green-50 p-2 rounded border border-green-200">
+                <Text className="text-green-600 text-sm font-semibold text-center">{successMsg}</Text>
+              </View>
+            ) : null}
             
-            <View className="mb-4">
+            <View className="mb-4 mt-2">
               <Text className="text-sm font-semibold text-gray-700 mb-2">Category Name</Text>
               <TextInput 
                 className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-base"

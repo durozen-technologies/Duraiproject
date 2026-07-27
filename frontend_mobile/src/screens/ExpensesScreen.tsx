@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronRight, Receipt, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Receipt, Trash2, RefreshCcw } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { fetchExpenseCategories, createExpenseEntry, updateExpenseEntry, deleteExpenseEntry, fetchExpensesHistory, ExpenseCategory, ExpenseEntry } from '../api/expenses';
+import ConfirmModal from '../components/ConfirmModal';
 
 export default function ExpensesScreen() {
   const navigation = useNavigation();
@@ -15,13 +16,16 @@ export default function ExpensesScreen() {
   const [cashAmount, setCashAmount] = useState('');
   const [upiAmount, setUpiAmount] = useState('');
   const [note, setNote] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const { data: categories, isLoading: isLoadingCategories } = useQuery({
     queryKey: ['activeExpenseCategories'],
     queryFn: () => fetchExpenseCategories(true)
   });
 
-  const { data: history, isLoading: isLoadingHistory } = useQuery({
+  const { data: history, isLoading: isLoadingHistory, refetch, isRefetching } = useQuery({
     queryKey: ['expensesHistory'],
     queryFn: () => fetchExpensesHistory(20)
   });
@@ -31,11 +35,13 @@ export default function ExpensesScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expensesHistory'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
-      closeModal();
-      Alert.alert('Success', 'Expense recorded successfully');
+      setErrorMsg('');
+      setSuccessMsg('Expense recorded successfully');
+      setTimeout(() => closeModal(), 1500);
     },
     onError: (err: any) => {
-      Alert.alert('Error', err?.response?.data?.detail || 'Failed to record expense');
+      setSuccessMsg('');
+      setErrorMsg(err?.response?.data?.detail || 'Failed to record expense');
     }
   });
 
@@ -44,11 +50,13 @@ export default function ExpensesScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expensesHistory'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
-      closeModal();
-      Alert.alert('Success', 'Expense updated successfully');
+      setErrorMsg('');
+      setSuccessMsg('Expense updated successfully');
+      setTimeout(() => closeModal(), 1500);
     },
     onError: (err: any) => {
-      Alert.alert('Error', err?.response?.data?.detail || 'Failed to update expense');
+      setSuccessMsg('');
+      setErrorMsg(err?.response?.data?.detail || 'Failed to update expense');
     }
   });
 
@@ -57,24 +65,21 @@ export default function ExpensesScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expensesHistory'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
-      closeModal();
-      Alert.alert('Success', 'Expense deleted successfully');
+      setShowDeleteConfirm(false);
+      setErrorMsg('');
+      setSuccessMsg('Expense deleted successfully');
+      setTimeout(() => closeModal(), 1500);
     },
     onError: (err: any) => {
-      Alert.alert('Error', err?.response?.data?.detail || 'Failed to delete expense');
+      setShowDeleteConfirm(false);
+      setSuccessMsg('');
+      setErrorMsg(err?.response?.data?.detail || 'Failed to delete expense');
     }
   });
 
   const handleDeleteExpense = () => {
     if (!editExpense) return;
-    Alert.alert(
-      "Confirm Delete",
-      "Are you sure you want to delete this expense?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => deleteExpenseMutation.mutate(editExpense.id) }
-      ]
-    );
+    setShowDeleteConfirm(true);
   };
 
   const openExpenseModal = (category: ExpenseCategory, expense?: ExpenseEntry) => {
@@ -95,6 +100,8 @@ export default function ExpensesScreen() {
   const closeModal = () => {
     setSelectedCategory(null);
     setEditExpense(null);
+    setErrorMsg('');
+    setSuccessMsg('');
   };
 
   const handleSaveExpense = () => {
@@ -104,9 +111,10 @@ export default function ExpensesScreen() {
     const upi = parseFloat(upiAmount) || 0;
     
     if (cash + upi <= 0) {
-      Alert.alert('Invalid Amount', 'Total amount must be greater than zero');
+      setErrorMsg('Total amount must be greater than zero');
       return;
     }
+    setErrorMsg('');
 
     if (editExpense) {
       updateExpenseMutation.mutate({
@@ -143,15 +151,38 @@ export default function ExpensesScreen() {
           </TouchableOpacity>
           <Text className="text-xl font-bold text-gray-900">Expenses</Text>
         </View>
-        <TouchableOpacity 
-          onPress={() => navigation.navigate('ExpenseCategories' as never)}
-          className="bg-gray-100 px-3 py-1.5 rounded-full"
-        >
-          <Text className="text-sm font-semibold text-gray-700">Categories</Text>
-        </TouchableOpacity>
+        <View className="flex-row items-center">
+          <TouchableOpacity 
+            onPress={() => {
+              refetch();
+              queryClient.invalidateQueries({ queryKey: ['activeExpenseCategories'] });
+            }}
+            className="p-2 bg-gray-100 rounded-full mr-2"
+          >
+            <RefreshCcw color="#374151" size={18} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('ExpenseCategories' as never)}
+            className="p-2 bg-gray-100 rounded-lg mr-2"
+          >
+            <Text className="text-gray-700 font-bold text-sm px-1">Categories</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <ScrollView className="flex-1 p-4">
+      <ScrollView 
+        className="flex-1 p-4"
+        refreshControl={
+          <RefreshControl 
+            refreshing={isRefetching} 
+            onRefresh={() => {
+              refetch();
+              queryClient.invalidateQueries({ queryKey: ['activeExpenseCategories'] });
+            }} 
+            colors={['#006948']} 
+          />
+        }
+      >
         <Text className="text-sm font-bold text-gray-600 mb-3 uppercase tracking-wider">Record New Expense</Text>
         
         {isLoadingCategories ? (
@@ -236,8 +267,20 @@ export default function ExpensesScreen() {
             <Text className="text-xl font-bold text-gray-900 mb-2 text-center">
               {editExpense ? 'Edit' : 'Record'} {selectedCategory?.name}
             </Text>
+
+            {errorMsg ? (
+              <View className="mb-2 mt-2 bg-red-50 p-2 rounded border border-red-200">
+                <Text className="text-red-600 text-sm font-semibold text-center">{errorMsg}</Text>
+              </View>
+            ) : null}
+
+            {successMsg ? (
+              <View className="mb-2 mt-2 bg-green-50 p-2 rounded border border-green-200">
+                <Text className="text-green-600 text-sm font-semibold text-center">{successMsg}</Text>
+              </View>
+            ) : null}
             
-            <View className="mb-4 mt-4">
+            <View className="mb-4 mt-2">
               <Text className="text-sm font-semibold text-gray-700 mb-2">Cash Amount (₹)</Text>
               <TextInput 
                 className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-base"
@@ -304,6 +347,18 @@ export default function ExpensesScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <ConfirmModal
+        isVisible={showDeleteConfirm}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this expense?"
+        onConfirm={() => {
+          if (editExpense) deleteExpenseMutation.mutate(editExpense.id);
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+        confirmText="Delete"
+        isDestructive={true}
+      />
     </SafeAreaView>
   );
 }

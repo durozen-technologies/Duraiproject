@@ -26,7 +26,9 @@ class PurchaseBase(BaseModel):
     purchase_amount: float = 0.0
     cash_payment: float = 0.0
     upi_payment: float = 0.0
+    balance_amount: float = 0.0
     remarks: Optional[str] = None
+    is_locked: bool = False
 
 class PurchaseCreate(PurchaseBase):
     date: Optional[datetime_date] = None
@@ -34,6 +36,7 @@ class PurchaseCreate(PurchaseBase):
 class PurchaseResponse(PurchaseBase):
     id: UUID4
     date: datetime_date
+    bill_number: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -48,9 +51,33 @@ async def create_purchase(purchase_in: PurchaseCreate, db: AsyncSession = Depend
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
         
+    # Generate unique bill_number for purchase
+    purchase_date = purchase_in.date or datetime.now().date()
+    current_year = purchase_date.year
+    prefix = f"PUR-{current_year}-"
+    
+    bill_query = await db.execute(
+        select(Purchase.bill_number)
+        .where(Purchase.bill_number.like(f"{prefix}%"))
+        .order_by(Purchase.bill_number.desc())
+        .limit(1)
+    )
+    last_bill = bill_query.scalar_one_or_none()
+    
+    if last_bill:
+        try:
+            seq = int(last_bill.split("-")[-1]) + 1
+        except ValueError:
+            seq = 1
+    else:
+        seq = 1
+        
+    new_bill_number = f"{prefix}{seq:06d}"
+
     db_purchase = Purchase(
         party_id=purchase_in.party_id,
-        date=purchase_in.date or datetime.now().date(),
+        date=purchase_date,
+        bill_number=new_bill_number,
         vehicle_number=purchase_in.vehicle_number,
         driver_name=purchase_in.driver_name,
         total_boxes=purchase_in.total_boxes,
@@ -63,7 +90,8 @@ async def create_purchase(purchase_in: PurchaseCreate, db: AsyncSession = Depend
         cash_payment=purchase_in.cash_payment,
         upi_payment=purchase_in.upi_payment,
         balance_amount=purchase_in.purchase_amount - (purchase_in.cash_payment + purchase_in.upi_payment),
-        remarks=purchase_in.remarks
+        remarks=purchase_in.remarks,
+        is_locked=purchase_in.is_locked
     )
     db.add(db_purchase)
     await db.flush()
@@ -98,6 +126,9 @@ async def update_purchase(purchase_id: UUID4, purchase_in: PurchaseUpdate, db: A
     db_purchase = result.scalar_one_or_none()
     if not db_purchase:
         raise HTTPException(status_code=404, detail="Purchase not found")
+        
+    if db_purchase.is_locked:
+        raise HTTPException(status_code=400, detail="Cannot edit a locked bill. Delete or edit the associated collection payment first.")
         
     result_party = await db.execute(select(Party).where(Party.id == db_purchase.party_id))
     old_supplier = result_party.scalar_one_or_none()
@@ -146,6 +177,7 @@ async def update_purchase(purchase_id: UUID4, purchase_in: PurchaseUpdate, db: A
     db_purchase.upi_payment = purchase_in.upi_payment
     db_purchase.balance_amount = purchase_in.purchase_amount - (purchase_in.cash_payment + purchase_in.upi_payment)
     db_purchase.remarks = purchase_in.remarks
+    db_purchase.is_locked = purchase_in.is_locked
 
     # Create new transaction if paid
     new_paid = purchase_in.cash_payment + purchase_in.upi_payment
@@ -174,6 +206,9 @@ async def delete_purchase(purchase_id: UUID4, db: AsyncSession = Depends(deps.ge
     db_purchase = result.scalar_one_or_none()
     if not db_purchase:
         raise HTTPException(status_code=404, detail="Purchase not found")
+
+    if db_purchase.is_locked:
+        raise HTTPException(status_code=400, detail="Cannot delete a locked bill. Delete or edit the associated collection payment first.")
 
     result_party = await db.execute(select(Party).where(Party.id == db_purchase.party_id))
     supplier = result_party.scalar_one_or_none()

@@ -7,6 +7,8 @@ import { ArrowLeft, Save, Truck, Box, Scale, Calculator, Banknote, Edit2, Pencil
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Picker } from '@react-native-picker/picker';
 import client from '../api/client';
+import { formatDateToDDMMYYYY } from '../utils/formatDate';
+import ConfirmModal from '../components/ConfirmModal';
 
 export default function NewPurchaseScreen({ navigation, route }: any) {
   const queryClient = useQueryClient();
@@ -45,12 +47,9 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
   const [isEditingGrams, setIsEditingGrams] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [errors, setErrors] = useState<any>({});
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '';
-    const [year, month, day] = dateString.split('-');
-    return `${day}/${month}/${year}`;
-  };
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleVehicleNumberChange = (text: string) => {
     let cleaned = text.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -108,12 +107,7 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
     }
   }, [form.net_weight, form.purchase_rate]);
 
-  React.useEffect(() => {
-    if (!editData && parties && parties.length > 0 && form.supplier_id === '') {
-      const supplier = parties.find((p: any) => p.type === 'PURCHASER');
-      if (supplier) setForm(f => ({ ...f, supplier_id: supplier.id }));
-    }
-  }, [parties, editData]);
+
 
   const mutation = useMutation({
     mutationFn: (purchaseData: any) => {
@@ -126,21 +120,23 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['parties'] });
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
-      Alert.alert("Success", `Purchase ${editData ? 'updated' : 'saved'} successfully`);
-      navigation.goBack();
+      setErrorMsg('');
+      setSuccessMsg(`Purchase ${editData ? 'updated' : 'saved'} successfully`);
+      setTimeout(() => navigation.goBack(), 1500);
     },
     onError: (error: any) => {
-      let errorMsg = `Failed to ${editData ? 'update' : 'save'} purchase`;
+      let msg = `Failed to ${editData ? 'update' : 'save'} purchase`;
       if (error?.response?.data?.detail) {
         if (typeof error.response.data.detail === 'string') {
-          errorMsg = error.response.data.detail;
+          msg = error.response.data.detail;
         } else if (Array.isArray(error.response.data.detail)) {
-          errorMsg = error.response.data.detail.map((e: any) => `${e.loc?.join('.')} ${e.msg}`).join('\n');
+          msg = error.response.data.detail.map((e: any) => `${e.loc?.join('.')} ${e.msg}`).join('\n');
         }
       } else if (error?.message) {
-        errorMsg = error.message;
+        msg = error.message;
       }
-      Alert.alert("Error", errorMsg);
+      setSuccessMsg('');
+      setErrorMsg(msg);
     }
   });
 
@@ -152,23 +148,20 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['parties'] });
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
-      Alert.alert("Success", "Purchase deleted successfully");
-      navigation.goBack();
+      setShowDeleteConfirm(false);
+      setErrorMsg('');
+      setSuccessMsg("Purchase deleted successfully");
+      setTimeout(() => navigation.goBack(), 1500);
     },
     onError: (error: any) => {
-      Alert.alert("Error", "Failed to delete purchase");
+      setShowDeleteConfirm(false);
+      setSuccessMsg('');
+      setErrorMsg("Failed to delete purchase");
     }
   });
 
   const handleDelete = () => {
-    Alert.alert(
-      "Confirm Delete",
-      "Are you sure you want to delete this purchase? This will revert the party balance.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => deleteMutation.mutate() }
-      ]
-    );
+    setShowDeleteConfirm(true);
   };
 
   const handleSave = () => {
@@ -216,10 +209,19 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
           <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
             <ArrowLeft size={24} color="#111827" />
           </TouchableOpacity>
-          <Text className="text-lg font-bold text-gray-900">{editData ? (isEditing ? 'Edit Purchase' : 'Purchase Details') : 'New Purchase'}</Text>
+          <View>
+            <Text className="text-lg font-bold text-gray-900">{editData ? (isEditing ? 'Edit Purchase' : 'Purchase Details') : 'New Purchase'}</Text>
+            {editData?.bill_number && <Text className="text-xs font-semibold text-gray-500">{editData.bill_number}</Text>}
+          </View>
         </View>
         {editData && !isEditing && (
-          <TouchableOpacity onPress={() => setIsEditing(true)} className="bg-gray-100 px-3 py-1.5 rounded-full flex-row items-center">
+          <TouchableOpacity onPress={() => {
+            if (editData?.total_invoice_amount !== editData?.balance_amount) {
+              setErrorMsg("Cannot edit or delete this bill because a collection payment is applied. Please delete the collection payment first.");
+              return;
+            }
+            setIsEditing(true);
+          }} className="bg-gray-100 px-3 py-1.5 rounded-full flex-row items-center">
             <Pencil color="#374151" size={14} className="mr-1" />
             <Text className="text-sm font-semibold text-gray-700">Edit</Text>
           </TouchableOpacity>
@@ -258,7 +260,7 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
                       onPress={() => setShowDatePicker(true)}
                       className="w-full px-3 bg-white border border-gray-300 rounded-md h-[50px] justify-center"
                     >
-                      <Text className="text-sm">{formatDate(form.date)}</Text>
+                      <Text className="text-sm">{formatDateToDDMMYYYY(form.date)}</Text>
                     </TouchableOpacity>
                     {showDatePicker && (
                       <DateTimePicker
@@ -287,7 +289,7 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
                     style={{ width: '100%' }}
                   >
                     <Picker.Item label="Select a Purchaser..." value="" color="#9ca3af" />
-                    {parties?.filter((p: any) => p.type === 'PURCHASER').map((party: any) => (
+                    {parties?.filter((p: any) => p.type === 'PURCHASER' && p.is_active !== false).map((party: any) => (
                       <Picker.Item key={party.id} label={party.name} value={party.id} />
                     ))}
                   </Picker>
@@ -467,6 +469,18 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
           />
         </View>
 
+        {errorMsg ? (
+          <View className="mb-4 bg-red-50 p-3 rounded-lg border border-red-200">
+            <Text className="text-red-600 text-sm font-semibold">{errorMsg}</Text>
+          </View>
+        ) : null}
+
+        {successMsg ? (
+          <View className="mb-4 bg-green-50 p-3 rounded-lg border border-green-200">
+            <Text className="text-green-600 text-sm font-semibold">{successMsg}</Text>
+          </View>
+        ) : null}
+
         {/* Payment */}
         <View className="mb-10">
           <View className="flex-row items-center mb-3">
@@ -545,6 +559,15 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
           </TouchableOpacity>
         </View>
       )}
+      <ConfirmModal
+        isVisible={showDeleteConfirm}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this purchase? This will revert the party balance."
+        onConfirm={() => deleteMutation.mutate()}
+        onCancel={() => setShowDeleteConfirm(false)}
+        confirmText="Delete"
+        isDestructive={true}
+      />
     </SafeAreaView>
   );
 }

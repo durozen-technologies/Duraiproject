@@ -1,20 +1,123 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, RefreshControl, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TrendingUp, ShoppingCart, Receipt, BarChart2, Users, Truck, ChevronRight } from 'lucide-react-native';
-import { useQuery } from '@tanstack/react-query';
+import { TrendingUp, ShoppingCart, Receipt, BarChart2, Users, Truck, ChevronRight, Wallet, Edit2, FileText, X, History, FileStack, RefreshCcw, Calendar } from 'lucide-react-native';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import client from '../api/client';
+import { formatDateToDDMMYYYY } from '../utils/formatDate';
 
 export default function DashboardScreen() {
   const navigation = useNavigation();
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboardStats'],
+  const queryClient = useQueryClient();
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [overrideCount, setOverrideCount] = useState('');
+  const [overrideWeight, setOverrideWeight] = useState('');
+  const [overrideNotes, setOverrideNotes] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  // Date Filtering State
+  const [filterType, setFilterType] = useState('Single Day');
+  const [customStartDate, setCustomStartDate] = useState(new Date());
+  const [customEndDate, setCustomEndDate] = useState(new Date());
+  const [showCustomStartPicker, setShowCustomStartPicker] = useState(false);
+  const [showCustomEndPicker, setShowCustomEndPicker] = useState(false);
+  const [customModalVisible, setCustomModalVisible] = useState(false);
+  const [appliedCustomStart, setAppliedCustomStart] = useState('');
+  const [appliedCustomEnd, setAppliedCustomEnd] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const getDateRange = () => {
+    const now = new Date();
+    if (filterType === 'Single Day') {
+      const start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      const end = new Date(start.getTime() + 86400000 - 1);
+      return { start_date: start.toISOString(), end_date: end.toISOString() };
+    }
+    if (filterType === 'Custom' && appliedCustomStart && appliedCustomEnd) {
+      try {
+        const [d1, m1, y1] = appliedCustomStart.split('-');
+        const [d2, m2, y2] = appliedCustomEnd.split('-');
+        const start = new Date(parseInt(y1), parseInt(m1) - 1, parseInt(d1));
+        const end = new Date(parseInt(y2), parseInt(m2) - 1, parseInt(d2), 23, 59, 59);
+        return { start_date: start.toISOString(), end_date: end.toISOString() };
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  };
+
+  const dateParams = getDateRange();
+
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
+    queryKey: ['dashboardStats', dateParams],
     queryFn: async () => {
-      const response = await client.get('/dashboard/stats');
+      const response = await client.get('/dashboard/stats', { params: dateParams });
       return response.data;
     }
   });
+
+  const { data: historyData } = useQuery({
+    queryKey: ['stockHistory'],
+    queryFn: async () => {
+      const response = await client.get('/dashboard/stock/override/history');
+      return response.data;
+    },
+    enabled: historyModalVisible
+  });
+
+  const overrideMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const response = await client.post('/dashboard/stock/override', payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      queryClient.invalidateQueries({ queryKey: ['stockHistory'] });
+      setErrorMsg('');
+      setSuccessMsg('Stock updated successfully');
+      setTimeout(() => setModalVisible(false), 1500);
+    },
+    onError: (err: any) => {
+      setSuccessMsg('');
+      setErrorMsg(err.response?.data?.detail || "Failed to update stock");
+    }
+  });
+
+  const handleSaveOverride = () => {
+    if (!overrideCount || !overrideWeight) {
+      setErrorMsg("Please enter both count and weight.");
+      return;
+    }
+    setErrorMsg('');
+    overrideMutation.mutate({
+      new_total_birds: parseInt(overrideCount),
+      new_total_weight: parseFloat(overrideWeight),
+      notes: overrideNotes
+    });
+  };
+
+  const openEditModal = () => {
+    if (data) {
+      setOverrideCount(data.birds_purchased.toString());
+      setOverrideWeight((data.weight_purchased || 0).toString());
+      setOverrideNotes('');
+    }
+    setModalVisible(true);
+  };
+
+  const onRefresh = React.useCallback(() => {
+    refetch();
+    if (historyModalVisible) {
+      queryClient.invalidateQueries({ queryKey: ['stockHistory'] });
+    }
+  }, [refetch, historyModalVisible, queryClient]);
 
   if (isLoading) {
     return (
@@ -32,26 +135,106 @@ export default function DashboardScreen() {
     net_profit: 0,
     birds_sold: 0,
     birds_purchased: 0,
-    avg_weight_sold: 0
+    avg_weight_sold: 0,
+    weight_sold: 0,
+    weight_purchased: 0,
+    purchaser_dues: 0,
+    supplier_payables: 0
   };
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Top App Bar */}
       <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
         <Text className="text-xl font-bold text-[#006948]">Broiler 360</Text>
+        <TouchableOpacity
+          onPress={onRefresh}
+          className="p-2 bg-gray-100 rounded-full"
+        >
+          <RefreshCcw color="#374151" size={18} />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1 p-4">
+      <ScrollView
+        className="flex-1 p-4"
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} colors={['#006948']} />
+        }
+      >
         {/* Date Filters */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
-          <TouchableOpacity className="px-5 py-2 bg-[#006948] rounded-md shadow-sm mr-2">
-            <Text className="text-white font-semibold">Today</Text>
-          </TouchableOpacity>
-          <TouchableOpacity className="px-5 py-2 bg-white border border-gray-300 rounded-md shadow-sm mr-2">
-            <Text className="text-gray-700 font-semibold">Yesterday</Text>
-          </TouchableOpacity>
-          <TouchableOpacity className="px-5 py-2 bg-white border border-gray-300 rounded-md shadow-sm mr-2">
-            <Text className="text-gray-700 font-semibold">This Week</Text>
+          {/* Specific Date Filter (replaces 'Today') */}
+          {Platform.OS === 'web' ? (
+            <View className={`px-5 py-2 rounded-md shadow-sm mr-2 flex-row items-center relative overflow-hidden ${filterType === 'Single Day' ? 'bg-[#006948]' : 'bg-white border border-gray-300'}`}>
+              <Calendar color={filterType === 'Single Day' ? 'white' : '#4b5563'} size={14} className="mr-1.5" />
+              <Text className={`font-semibold ${filterType === 'Single Day' ? 'text-white' : 'text-gray-700'}`}>
+                {selectedDate.toDateString() === new Date().toDateString()
+                  ? 'Today'
+                  : formatDateToDDMMYYYY(selectedDate.toISOString().split('T')[0])}
+              </Text>
+              <input
+                type="date"
+                value={selectedDate.toISOString().split('T')[0]}
+                onChange={(e: any) => {
+                  const d = new Date(e.target.value);
+                  if (!isNaN(d.getTime())) {
+                    setSelectedDate(d);
+                    setFilterType('Single Day');
+                  }
+                }}
+                onClick={() => setFilterType('Single Day')}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  opacity: 0,
+                  cursor: 'pointer'
+                }}
+              />
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => {
+                setFilterType('Single Day');
+                setShowDatePicker(true);
+              }}
+              className={`px-5 py-2 rounded-md shadow-sm mr-2 flex-row items-center ${filterType === 'Single Day' ? 'bg-[#006948]' : 'bg-white border border-gray-300'}`}
+            >
+              <Calendar color={filterType === 'Single Day' ? 'white' : '#4b5563'} size={14} className="mr-1.5" />
+              <Text className={`font-semibold ${filterType === 'Single Day' ? 'text-white' : 'text-gray-700'}`}>
+                {selectedDate.toDateString() === new Date().toDateString()
+                  ? 'Today'
+                  : formatDateToDDMMYYYY(selectedDate.toISOString().split('T')[0])}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {Platform.OS !== 'web' && showDatePicker && (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display="default"
+              onValueChange={(event: any, newDate: any) => {
+                setShowDatePicker(false);
+                if (newDate) {
+                  setSelectedDate(newDate);
+                  setFilterType('Single Day');
+                }
+              }}
+              onDismiss={() => setShowDatePicker(false)}
+            />
+          )}
+
+          <TouchableOpacity
+            onPress={() => setCustomModalVisible(true)}
+            className={`px-5 py-2 rounded-md shadow-sm mr-2 ${filterType === 'Custom' ? 'bg-[#006948]' : 'bg-white border border-gray-300'}`}
+          >
+            <Text className={`font-semibold ${filterType === 'Custom' ? 'text-white' : 'text-gray-700'}`}>
+              {filterType === 'Custom' && appliedCustomStart && appliedCustomEnd
+                ? `${appliedCustomStart} to ${appliedCustomEnd}`
+                : 'Custom'}
+            </Text>
           </TouchableOpacity>
         </ScrollView>
 
@@ -106,36 +289,69 @@ export default function DashboardScreen() {
         <View className="mb-6">
           <Text className="text-lg font-bold text-gray-900 mb-3">Quick Actions</Text>
           <View className="flex-row gap-3">
-            <TouchableOpacity 
-              onPress={() => navigation.navigate('Expenses' as never)}
-              className="flex-1 bg-white p-3 rounded-xl border border-gray-200 flex-row items-center shadow-sm"
+            <TouchableOpacity
+              onPress={() => navigation.navigate('CollectionPayment' as never)}
+              className="flex-1 bg-white p-3 rounded-xl border border-gray-200 flex-col items-center shadow-sm justify-center"
             >
-              <View className="w-10 h-10 rounded-lg bg-green-100 items-center justify-center mr-3">
-                <Receipt color="#006948" size={20} />
+              <View className="w-12 h-12 rounded-full bg-blue-50 items-center justify-center mb-2">
+                <Wallet color="#1d4ed8" size={24} />
               </View>
-              <View className="flex-1">
-                <Text className="text-sm font-bold text-gray-900">Expenses</Text>
-                <Text className="text-xs text-gray-500">Record daily spend</Text>
-              </View>
+              <Text className="text-sm font-bold text-gray-900 text-center">Collection</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              onPress={() => navigation.navigate('ExpenseCategories' as never)}
-              className="flex-1 bg-white p-3 rounded-xl border border-gray-200 flex-row items-center shadow-sm"
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Reports' as never)}
+              className="flex-1 bg-white p-3 rounded-xl border border-gray-200 flex-col items-center shadow-sm justify-center"
             >
-              <View className="w-10 h-10 rounded-lg bg-gray-100 items-center justify-center mr-3">
-                <BarChart2 color="#374151" size={20} />
+              <View className="w-12 h-12 rounded-full bg-purple-50 items-center justify-center mb-2">
+                <FileStack color="#7e22ce" size={24} />
               </View>
-              <View className="flex-1">
-                <Text className="text-sm font-bold text-gray-900">Categories</Text>
-                <Text className="text-xs text-gray-500">Manage types</Text>
-              </View>
+              <Text className="text-sm font-bold text-gray-900 text-center">Reports</Text>
             </TouchableOpacity>
           </View>
         </View>
 
+        {/* Stock */}
+        <View className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6">
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-lg font-bold text-gray-900">Stock</Text>
+            <View className="flex-row gap-2">
+              <TouchableOpacity onPress={() => setHistoryModalVisible(true)} className="p-2 bg-gray-100 rounded-full">
+                <History color="#4b5563" size={16} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={openEditModal} className="p-2 bg-green-50 rounded-full border border-green-100">
+                <Edit2 color="#006948" size={16} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View className="flex-row justify-between items-end mb-4">
+            <View>
+              <Text className="text-xs font-semibold text-gray-600">Purchase Bird Count</Text>
+              <Text className="text-xl font-bold text-gray-900">{stats.birds_purchased}</Text>
+            </View>
+            <View className="items-end">
+              <Text className="text-xs font-semibold text-gray-600">Net Weight</Text>
+              <Text className="text-base font-bold text-[#006948]">{(stats.weight_purchased || 0).toFixed(2)} kg</Text>
+            </View>
+          </View>
+
+          <View className="h-px bg-gray-100 mb-4 w-full" />
+
+          <View className="flex-row justify-between items-end">
+            <View>
+              <Text className="text-xs font-semibold text-gray-600">Sale Bird Count</Text>
+              <Text className="text-xl font-bold text-gray-900">{stats.birds_sold}</Text>
+            </View>
+            <View className="items-end">
+              <Text className="text-xs font-semibold text-gray-600">Net Weight</Text>
+              <Text className="text-base font-bold text-[#006948]">{(stats.weight_sold || 0).toFixed(2)} kg</Text>
+            </View>
+          </View>
+        </View>
+
         {/* Outstanding */}
-        <View className="mb-6">
+        <View className="mb-10">
           <Text className="text-lg font-bold text-gray-900 mb-3">Outstanding</Text>
           <View className="bg-white p-3 rounded-xl border border-gray-200 flex-row items-center justify-between shadow-sm mb-2">
             <View className="flex-row items-center">
@@ -143,50 +359,236 @@ export default function DashboardScreen() {
                 <Users color="white" size={20} />
               </View>
               <View className="ml-3">
-                <Text className="text-xs font-semibold text-gray-600">Purchaser Dues</Text>
-                <Text className="text-base font-bold text-gray-900">₹1,24,000</Text>
+                <Text className="text-xs font-semibold text-gray-600">Current Purchaser Dues</Text>
+                <Text className="text-base font-bold text-gray-900">₹{(stats.purchaser_dues || 0).toLocaleString()}</Text>
               </View>
             </View>
             <ChevronRight color="#9ca3af" size={20} />
           </View>
-          
+
           <View className="bg-white p-3 rounded-xl border border-gray-200 flex-row items-center justify-between shadow-sm">
             <View className="flex-row items-center">
               <View className="w-10 h-10 rounded-lg bg-gray-200 items-center justify-center mr-3">
                 <Truck color="#374151" size={20} />
               </View>
               <View>
-                <Text className="text-xs font-semibold text-gray-600">Supplier Payables</Text>
-                <Text className="text-base font-bold text-gray-900">₹85,500</Text>
+                <Text className="text-xs font-semibold text-gray-600">Current Supplier Payables</Text>
+                <Text className="text-base font-bold text-gray-900">₹{(stats.supplier_payables || 0).toLocaleString()}</Text>
               </View>
             </View>
             <ChevronRight color="#9ca3af" size={20} />
           </View>
         </View>
 
-        {/* Flock Movement */}
-        <View className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-10">
-          <Text className="text-lg font-bold text-gray-900 mb-4">Flock Movement</Text>
-          <View className="flex-row justify-between items-end mb-4">
-            <View>
-              <Text className="text-xs font-semibold text-gray-600">Birds Sold</Text>
-              <Text className="text-xl font-bold text-gray-900">{stats.birds_sold}</Text>
-            </View>
-            <View className="items-end">
-              <Text className="text-xs font-semibold text-gray-600">Avg. Weight</Text>
-              <Text className="text-base font-bold text-[#006948]">{stats.avg_weight_sold.toFixed(2)} kg</Text>
+        {/* Edit Stock Modal */}
+        <Modal visible={modalVisible} transparent={true} animationType="fade">
+          <View className="flex-1 justify-center items-center bg-black/50 p-4">
+            <View className="bg-white rounded-2xl w-full p-5 shadow-xl">
+              <View className="flex-row justify-between items-center mb-4">
+                <Text className="text-xl font-bold text-gray-900">Edit Stock</Text>
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <X color="#6b7280" size={24} />
+                </TouchableOpacity>
+              </View>
+
+              {errorMsg ? (
+                <View className="mb-4 bg-red-50 p-2 rounded border border-red-200">
+                  <Text className="text-red-600 text-sm font-semibold text-center">{errorMsg}</Text>
+                </View>
+              ) : null}
+
+              {successMsg ? (
+                <View className="mb-4 bg-green-50 p-2 rounded border border-green-200">
+                  <Text className="text-green-600 text-sm font-semibold text-center">{successMsg}</Text>
+                </View>
+              ) : null}
+
+              <Text className="text-sm font-semibold text-gray-700 mb-1">Total Purchase Count</Text>
+              <TextInput
+                value={overrideCount}
+                onChangeText={setOverrideCount}
+                keyboardType="numeric"
+                className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-4 text-gray-900"
+                placeholder="0"
+              />
+
+              <Text className="text-sm font-semibold text-gray-700 mb-1">Total Purchase Weight (kg)</Text>
+              <TextInput
+                value={overrideWeight}
+                onChangeText={setOverrideWeight}
+                keyboardType="numeric"
+                className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-4 text-gray-900"
+                placeholder="0.00"
+              />
+
+              <Text className="text-sm font-semibold text-gray-700 mb-1">Notes (Optional)</Text>
+              <TextInput
+                value={overrideNotes}
+                onChangeText={setOverrideNotes}
+                className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6 text-gray-900"
+                placeholder="Reason for adjustment"
+                multiline
+              />
+
+              <TouchableOpacity
+                onPress={handleSaveOverride}
+                disabled={overrideMutation.isPending}
+                className="bg-[#006948] rounded-xl py-3.5 items-center shadow-sm"
+              >
+                {overrideMutation.isPending ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text className="text-white font-bold text-base">Save Changes</Text>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
-          <View className="h-px bg-gray-100 mb-4 w-full" />
-          <View className="flex-row justify-between items-end">
-            <View>
-              <Text className="text-xs font-semibold text-gray-600">Birds Purchased</Text>
-              <Text className="text-xl font-bold text-gray-900">{stats.birds_purchased}</Text>
+        </Modal>
+
+        {/* History Modal */}
+        <Modal visible={historyModalVisible} transparent={true} animationType="slide">
+          <View className="flex-1 bg-white mt-10 rounded-t-3xl shadow-2xl">
+            <View className="px-5 py-4 border-b border-gray-100 flex-row justify-between items-center">
+              <Text className="text-lg font-bold text-gray-900">Stock History</Text>
+              <TouchableOpacity onPress={() => setHistoryModalVisible(false)} className="p-2 bg-gray-100 rounded-full">
+                <X color="#4b5563" size={20} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView className="p-4">
+              {historyData && historyData.length > 0 ? (
+                historyData.map((item: any) => (
+                  <View key={item.id} className="bg-gray-50 p-4 rounded-xl mb-3 border border-gray-100">
+                    <View className="flex-row justify-between items-start mb-2">
+                      <Text className="text-xs font-semibold text-gray-500">{new Date(item.date).toLocaleString()}</Text>
+                      <View className="bg-blue-100 px-2 py-0.5 rounded text-xs">
+                        <Text className="text-blue-700 text-[10px] font-bold">MANUAL</Text>
+                      </View>
+                    </View>
+                    <View className="flex-row justify-between items-end mt-1">
+                      <View>
+                        <Text className="text-xs text-gray-500">Count</Text>
+                        <Text className="text-base font-bold text-gray-900">{item.new_total_birds}</Text>
+                      </View>
+                      <View className="items-end">
+                        <Text className="text-xs text-gray-500">Weight</Text>
+                        <Text className="text-base font-bold text-gray-900">{item.new_total_weight} kg</Text>
+                      </View>
+                    </View>
+                    {item.notes ? (
+                      <View className="mt-3 bg-white p-2 rounded-lg border border-gray-200">
+                        <Text className="text-xs text-gray-600 italic">"{item.notes}"</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ))
+              ) : (
+                <Text className="text-center text-gray-500 mt-10">No history available</Text>
+              )}
+              <View className="h-10" />
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Custom Date Range Modal */}
+        <Modal visible={customModalVisible} transparent={true} animationType="fade">
+          <View className="flex-1 justify-center items-center bg-black/50 p-4">
+            <View className="bg-white rounded-2xl w-full p-5 shadow-xl">
+              <View className="flex-row justify-between items-center mb-4">
+                <Text className="text-xl font-bold text-gray-900">Custom Date Range</Text>
+                <TouchableOpacity onPress={() => setCustomModalVisible(false)}>
+                  <X color="#6b7280" size={24} />
+                </TouchableOpacity>
+              </View>
+
+              <Text className="text-sm font-semibold text-gray-700 mb-1">From Date</Text>
+              {Platform.OS === 'web' ? (
+                <input
+                  type="date"
+                  value={customStartDate.toISOString().split('T')[0]}
+                  onChange={(e: any) => {
+                    const d = new Date(e.target.value);
+                    if (!isNaN(d.getTime())) setCustomStartDate(d);
+                  }}
+                  style={{ padding: 10, width: '100%', height: 48, border: '1px solid #e5e7eb', borderRadius: 8, backgroundColor: '#f9fafb', marginBottom: 16 }}
+                />
+              ) : (
+                <>
+                  <TouchableOpacity
+                    onPress={() => setShowCustomStartPicker(true)}
+                    className="w-full px-4 bg-gray-50 border border-gray-200 rounded-xl h-[48px] justify-center mb-4"
+                  >
+                    <Text className="text-sm text-gray-900">{formatDateToDDMMYYYY(customStartDate.toISOString().split('T')[0])}</Text>
+                  </TouchableOpacity>
+                  {showCustomStartPicker && (
+                    <DateTimePicker
+                      value={customStartDate}
+                      mode="date"
+                      display="default"
+                      onValueChange={(event: any, newDate: any) => {
+                        setShowCustomStartPicker(false);
+                        if (newDate) setCustomStartDate(newDate);
+                      }}
+                      onDismiss={() => setShowCustomStartPicker(false)}
+                    />
+                  )}
+                </>
+              )}
+
+              <Text className="text-sm font-semibold text-gray-700 mb-1">To Date</Text>
+              {Platform.OS === 'web' ? (
+                <input
+                  type="date"
+                  value={customEndDate.toISOString().split('T')[0]}
+                  onChange={(e: any) => {
+                    const d = new Date(e.target.value);
+                    if (!isNaN(d.getTime())) setCustomEndDate(d);
+                  }}
+                  style={{ padding: 10, width: '100%', height: 48, border: '1px solid #e5e7eb', borderRadius: 8, backgroundColor: '#f9fafb', marginBottom: 24 }}
+                />
+              ) : (
+                <>
+                  <TouchableOpacity
+                    onPress={() => setShowCustomEndPicker(true)}
+                    className="w-full px-4 bg-gray-50 border border-gray-200 rounded-xl h-[48px] justify-center mb-6"
+                  >
+                    <Text className="text-sm text-gray-900">{formatDateToDDMMYYYY(customEndDate.toISOString().split('T')[0])}</Text>
+                  </TouchableOpacity>
+                  {showCustomEndPicker && (
+                    <DateTimePicker
+                      value={customEndDate}
+                      mode="date"
+                      display="default"
+                      onValueChange={(event: any, newDate: any) => {
+                        setShowCustomEndPicker(false);
+                        if (newDate) setCustomEndDate(newDate);
+                      }}
+                      onDismiss={() => setShowCustomEndPicker(false)}
+                    />
+                  )}
+                </>
+              )}
+
+              <TouchableOpacity
+                onPress={() => {
+                  if (customStartDate > customEndDate) {
+                    Alert.alert("Error", "Start date cannot be after end date.");
+                    return;
+                  }
+                  setAppliedCustomStart(formatDateToDDMMYYYY(customStartDate.toISOString().split('T')[0]));
+                  setAppliedCustomEnd(formatDateToDDMMYYYY(customEndDate.toISOString().split('T')[0]));
+                  setFilterType('Custom');
+                  setCustomModalVisible(false);
+                }}
+                className="bg-[#006948] rounded-xl py-3.5 items-center shadow-sm"
+              >
+                <Text className="text-white font-bold text-base">Apply Filter</Text>
+              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Modal>
 
       </ScrollView>
     </SafeAreaView>
+
   );
 }

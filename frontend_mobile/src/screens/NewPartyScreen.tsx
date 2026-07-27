@@ -14,8 +14,9 @@ export default function NewPartyScreen({ navigation }: any) {
     name: '',
     mobile: '',
     address: '',
-    opening_balance: '0'
+    opening_balance: ''
   });
+  const [errors, setErrors] = useState<{name?: string, mobile?: string, address?: string, opening_balance?: string, generic?: string}>({});
 
   const mutation = useMutation({
     mutationFn: (newParty: any) => {
@@ -23,30 +24,43 @@ export default function NewPartyScreen({ navigation }: any) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parties'] });
-      Alert.alert("Success", `${tab === 'SUPPLIER' ? 'Supplier' : 'Purchaser'} added successfully`);
-      navigation.goBack();
+      setErrors({});
+      navigation.navigate('MainTabs', { 
+        screen: 'Parties',
+        params: { successMessage: `${tab === 'SUPPLIER' ? 'Supplier' : 'Purchaser'} added successfully` }
+      });
     },
     onError: (error: any) => {
-      let errorMsg = "Failed to add party";
+      let msg = "Failed to add party";
       if (error?.response?.data?.detail) {
         if (typeof error.response.data.detail === 'string') {
-          errorMsg = error.response.data.detail;
+          msg = error.response.data.detail;
         } else if (Array.isArray(error.response.data.detail)) {
-          // FastAPI validation error is an array
-          errorMsg = error.response.data.detail.map((e: any) => e.msg).join(', ');
+          msg = error.response.data.detail.map((e: any) => e.msg).join(', ');
         }
       } else if (error?.message) {
-        errorMsg = error.message;
+        msg = error.message;
       }
-      Alert.alert("Error", errorMsg);
+      setErrors({ generic: msg });
     }
   });
 
   const handleSave = () => {
-    if (!form.name) {
-      Alert.alert("Error", "Name is required");
+    let newErrors: {name?: string, mobile?: string, address?: string, opening_balance?: string} = {};
+    if (!form.name.trim()) newErrors.name = "Name is required";
+    if (!form.mobile.trim()) {
+      newErrors.mobile = "Mobile Number is required";
+    } else if (!/^\d{10}$/.test(form.mobile.trim())) {
+      newErrors.mobile = "Mobile Number must be exactly 10 digits";
+    }
+    if (!form.address.trim()) newErrors.address = "Address is required";
+    if (form.opening_balance.trim() === '') newErrors.opening_balance = "Opening Balance is required (Enter 0 if Nil)";
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
+    setErrors({});
     mutation.mutate({
       name: form.name,
       mobile: form.mobile,
@@ -72,6 +86,7 @@ export default function NewPartyScreen({ navigation }: any) {
         extraScrollHeight={120}
         keyboardShouldPersistTaps="handled"
       >
+
         {/* Tabs */}
         <View className="flex-row border border-gray-200 rounded-lg mb-6 overflow-hidden bg-white">
           <TouchableOpacity 
@@ -94,6 +109,12 @@ export default function NewPartyScreen({ navigation }: any) {
             <Text className="text-sm font-semibold text-[#006948]">Details</Text>
           </View>
           
+          {errors.generic ? (
+            <View className="mb-4 bg-red-50 p-3 rounded-lg border border-red-200">
+              <Text className="text-red-600 text-sm font-semibold text-center">{errors.generic}</Text>
+            </View>
+          ) : null}
+          
           <View className="space-y-3">
             <View>
               <Text className="text-xs font-medium text-gray-700 mb-1">Name / Company Name *</Text>
@@ -101,41 +122,60 @@ export default function NewPartyScreen({ navigation }: any) {
                 placeholder=". Pioneer Feeds"
                 value={form.name}
                 onChangeText={(v) => setForm({...form, name: v})}
-                className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm"
+                className={`w-full px-3 py-2.5 bg-white border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-md text-sm`}
               />
+              {errors.name ? (
+                <Text className="text-red-500 text-xs mt-1">{errors.name}</Text>
+              ) : null}
             </View>
             
             <View>
-              <Text className="text-xs font-medium text-gray-700 mb-1">Mobile Number</Text>
+              <Text className="text-xs font-medium text-gray-700 mb-1">Mobile Number *</Text>
               <TextInput 
                 placeholder="9876543210"
                 keyboardType="phone-pad"
+                maxLength={10}
                 value={form.mobile}
-                onChangeText={(v) => setForm({...form, mobile: v})}
-                className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm"
+                onChangeText={(v) => {
+                  // Only allow digits
+                  const numericValue = v.replace(/[^0-9]/g, '');
+                  setForm({...form, mobile: numericValue});
+                }}
+                className={`w-full px-3 py-2.5 bg-white border ${errors.mobile ? 'border-red-500' : 'border-gray-300'} rounded-md text-sm`}
               />
+              {errors.mobile ? (
+                <Text className="text-red-500 text-xs mt-1">{errors.mobile}</Text>
+              ) : null}
             </View>
 
             <View>
-              <Text className="text-xs font-medium text-gray-700 mb-1">Address</Text>
+              <Text className="text-xs font-medium text-gray-700 mb-1">Address *</Text>
               <TextInput 
                 placeholder=" 123 Main St, City"
                 value={form.address}
                 onChangeText={(v) => setForm({...form, address: v})}
-                className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm"
+                className={`w-full px-3 py-2.5 bg-white border ${errors.address ? 'border-red-500' : 'border-gray-300'} rounded-md text-sm`}
               />
+              {errors.address ? (
+                <Text className="text-red-500 text-xs mt-1">{errors.address}</Text>
+              ) : null}
             </View>
 
             <View>
-              <Text className="text-xs font-medium text-gray-700 mb-1">Opening Balance (₹)</Text>
+              <Text className="text-xs font-medium text-gray-700 mb-1">Opening Balance (₹) *</Text>
               <TextInput 
                 placeholder="0.00"
                 keyboardType="numeric"
                 value={form.opening_balance}
-                onChangeText={(v) => setForm({...form, opening_balance: v})}
-                className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm"
+                onChangeText={(v) => {
+                  const positiveValue = v.replace(/[^0-9.]/g, '');
+                  setForm({...form, opening_balance: positiveValue});
+                }}
+                className={`w-full px-3 py-2.5 bg-white border ${errors.opening_balance ? 'border-red-500' : 'border-gray-300'} rounded-md text-sm`}
               />
-              <Text className="text-[10px] text-gray-400 mt-1">Use negative value if they owe you money.</Text>
+              {errors.opening_balance ? (
+                <Text className="text-red-500 text-xs mt-1">{errors.opening_balance}</Text>
+              ) : null}
             </View>
           </View>
         </View>

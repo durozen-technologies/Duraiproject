@@ -349,3 +349,204 @@ Agent: I searched the frontend UI and successfully replaced all instances of "Cu
 - Discovered that the root repo was trying to add `.git` subfolders from `backend/` and `frontend_mobile/` which caused Git to fail adding the files.
 - Deleted the nested `.git` folders so they could be properly tracked by the root repository.
 - Ran `git add .`, `git commit -m "Push all code"`, and `git push -u origin main`.
+
+### [2026-07-24 13:10]
+**User:** Requested to add filtering by Party and Date (with default selections) to Sales and Purchases screens, and to show dynamically calculated Total Amount and Total Balance Amount for the filtered bills.
+**Agent:** 
+- Created an implementation plan and got user approval.
+- Added `balance_amount` to `PurchaseBase` and `SaleBase` backend schemas so the API returns it.
+- Rewrote `PurchasesScreen.tsx` and `SalesScreen.tsx` to include `useQuery(['parties'])` and built the Picker UI for Party and Date selection.
+- Defaulted the Date Picker to "Today" and Party Picker to "All Parties".
+- Used `useMemo` to filter the local array of bills based on the selected dropdown values.
+- Calculated the `totalAmount` and `totalBalance` and displayed them in a styled summary card at the top of the list.
+
+### [2026-07-24 13:17]
+**User:** Requested to add labels ("Party" and "Date") above the Pickers for clarity, and to implement a "Custom date range" using a datepicker.
+**Agent:** 
+- Modified the UI in `PurchasesScreen.tsx` and `SalesScreen.tsx` to include `Text` labels above the Party and Date pickers.
+- Added a "Custom" option to the Date Picker.
+- When "Custom" is selected, the UI displays two new inputs (Start Date and End Date). Tapping them triggers the native `DateTimePicker`.
+- Updated the filtering logic in `useMemo` to properly evaluate if a bill falls within the selected custom start and end dates.
+
+### [2026-07-24 13:20]
+**User:** Invoked `/impeccable layout` and provided a screenshot showing that the Picker text was cut off on Android and the labels weren't clearly visible.
+**Agent:** 
+- Analyzed the screenshot and saw that the wrapper `h-10` (40px) and `style={{ height: 40 }}` on the `Picker` were too short for the native Android element.
+- Replaced the height with `h-12` (48px) and `style={{ height: 48 }}` on the Pickers in both `PurchasesScreen.tsx` and `SalesScreen.tsx`.
+- Darkened and slightly enlarged the labels (`text-sm text-gray-700 font-semibold`) for better contrast.
+- Added `border border-gray-200` to the picker wrappers to better define their shapes.
+
+### [2026-07-24 13:23]
+**User:** Requested to filter the Party dropdown so that Purchases only shows Suppliers and Sales only shows Customers/Purchasers.
+**Agent:** 
+- Modified `PurchasesScreen.tsx` to `.filter((party: any) => party.type === 'SUPPLIER')` before mapping the Picker items.
+- Modified `SalesScreen.tsx` to `.filter((party: any) => party.type === 'PURCHASER')` before mapping the Picker items.
+
+### [2026-07-24 13:31]
+**User:** Noted that the Picker text was still hiding the bottom 20%.
+**Agent:** 
+- Removed the fixed height (`h-12`) from the wrapper `View` and the fixed `height: 48` from the `<Picker>` components in both Purchases and Sales screens.
+- This allows the native Android picker component to dictate its own height and padding, preventing it from clipping against the `overflow-hidden` container.
+
+### [2026-07-24 13:33]
+**User:** Reported a console warning from `@react-native-community/datetimepicker` regarding the deprecation of the `onChange` prop.
+**Agent:** 
+### [2026-07-24 14:46]
+**User:** Requested the ability to edit a party's details and toggle their "Active/Disable" status. 
+**Agent:** 
+- Created and got approval on an implementation plan for editing parties.
+- Added `is_active` to `Party` model and executed an Alembic migration (fixed a nullability issue by adding a server default).
+- Added `PUT /parties/{party_id}` endpoint.
+- Built a `PartyDetailsModal` component in React Native that supports both a "Preview Mode" and an "Edit Mode".
+- Updated `PartiesScreen` to sort active parties to the top and render disabled parties with a badge and gray background.
+- Fixed `NewPurchaseScreen` and `NewSaleScreen` which were inadvertently filtering inverted roles, and added `.filter(p => p.is_active !== false)` to all transaction Pickers.
+
+### [2026-07-24 14:48]
+**User:** Requested that the opening balance be included in the total balance calculation when a particular party is selected on the Purchases or Sales screens.
+**Agent:** 
+- Updated `totalBalance` logic in both `PurchasesScreen.tsx` and `SalesScreen.tsx` to add the selected party's `opening_balance` if a specific party (`!== 'all'`) is chosen from the dropdown.
+
+### [2026-07-24 15:05]
+**User:** Requested the ability to edit the opening balance inside the Party Details modal.
+**Agent:** 
+- Updated `PartyUpdate` schema in `backend/app/api/routes/parties.py` to allow optional `opening_balance`.
+- Added logic in the `PUT /parties/{party_id}` endpoint to automatically apply the difference between the new and old `opening_balance` to the party's `current_balance`, ensuring the running balance stays mathematically correct.
+- Updated `PartyDetailsModal.tsx` on the frontend to include a numeric `TextInput` for the opening balance.
+
+### [2026-07-24 15:15]
+**User:** Explicitly specified that Purchases should filter for `PURCHASER` type parties, and Sales should filter for `SUPPLIER` type parties.
+**Agent:** 
+- Swapped the party type filters in `PurchasesScreen.tsx`, `SalesScreen.tsx`, `NewPurchaseScreen.tsx`, and `NewSaleScreen.tsx`.
+- Updated the label for the dropdowns in the new transaction screens to correctly reflect this inverted convention.
+
+### [2026-07-24 15:20]
+**User:** Requested the party preview screen to be keyboard aware and for the "save changes" button to stay at the bottom, not floating.
+**Agent:** 
+- Wrapped the contents of `PartyDetailsModal.tsx` in a `KeyboardAvoidingView` and `ScrollView`.
+- Placed the "Save Changes" footer inside the `ScrollView` below the form fields, so it scrolls naturally with the content rather than floating fixed above it.
+# #   [ 2 0 2 6 - 0 7 - 2 5   0 9 : 2 7 : 0 0 ]   U s e r   r e q u e s t e d   t o   a d d   C o l l e c t i o n   P a y m e n t   a n d   r e m o v e   E x p e n s e s / C a t e g o r i e s   f r o m   D a s h b o a r d .  
+ A g e n t :   R e w r o t e   p l a n   t o   e n s u r e   o v e r p a y m e n t   v a l i d a t i o n ,   t h e n   i m p l e m e n t e d   C o l l e c t i o n P a y m e n t S c r e e n ,   p a y m e n t s . p y   A P I   w i t h   F I F O   l o g i c ,   a n d   u p d a t e d   D a s h b o a r d .  
+ T e r m i n a l   C o m m a n d s   R u n :  
+ -   ( N o   c o m p l e x   t e r m i n a l   c o m m a n d s   r u n ,   u t i l i z e d   d i r e c t   f i l e   e d i t i n g   t o o l s   f o r   T S X / P Y   c h a n g e s )  
+  
+ ### [2026-07-25 11:50:00] UI Overhaul for Purchases and Sales
+- Applied frontend-ui-engineering standards to PurchasesScreen and SalesScreen.
+- Added Party Name visibility in the list cards.
+- Refined card styling with status pills (PAID/DUE) and colored icons.
+- Upgraded Summary Cards with premium gradients/shadows.
+- Created robust empty states with icons and call-to-action buttons.
+### [2026-07-25 12:03:00] Pending and Paid Filters
+- Added "Pending" and "Paid" filter chips to PurchasesScreen and SalesScreen to allow filtering transactions by their balance_amount.
+- Removed fixed heights from Picker components to fix text clipping issue ("All Darties") on Android devices.
+### [2026-07-25 12:06:00] Compact Summary UI layout
+- Moved Status Chips (All, Pending, Paid) to sit directly below the green Summary Card in Purchases and Sales screens.
+- Compacted the Summary Card layout by reducing internal padding, shrinking font sizes, and tightening element spacing to restore vertical screen real estate.
+### [2026-07-25 12:08:00] Status Filter Bugfix
+- Fixed a bug in PurchasesScreen and SalesScreen where selecting a Date filter bypassed the Status (Pending/Paid) filter logic.
+- Refactored the useMemo filter functions to evaluate Date filters negatively (returning false early on mismatch) so that they properly fall through to evaluate the Status filter.
+### [2026-07-25 12:13:00] Collection Payment UI Tweak
+- Updated CollectionPaymentScreen to center the "Bill Bal" text in the payment modal when the selected party does not have an opening balance.
+### [2026-07-25 12:15:00] Total Paying indicator in Collection Payment
+- Added a dynamic "Total Paying" green banner above the Submit button in the Collection Payment modal that sums the Cash and UPI inputs in real-time.
+### [2026-07-25 12:18:00] Global Date Formatting Standardization
+- Created a global utility function formatDateToDDMMYYYY to standardize date formatting across the entire app.
+- Updated CollectionPaymentScreen, PurchasesScreen, SalesScreen, NewPurchaseScreen, and NewSaleScreen to use this utility, ensuring all dates consistently display in DD/MM/YYYY format instead of US MM/DD/YYYY format or raw backend YYYY-MM-DD.
+# # #   [ 2 0 2 6 - 0 7 - 2 5   1 1 : 2 0 : 0 0 ]   S t r i c t   L e d g e r   P r o t e c t i o n   I m p l e m e n t a t i o n  
+ -   I m p l e m e n t e d   P a y m e n t A l l o c a t i o n   j u n c t i o n   t a b l e .  
+ -   E x e c u t e d   A l e m b i c   M i g r a t i o n   c o m m a n d :   u v   r u n   a l e m b i c   r e v i s i o n   - - a u t o g e n e r a t e   - m   \  
+- Updated CollectionPaymentScreen, PurchasesScreen, SalesScreen, NewPurchaseScreen, and NewSaleScreen to use this utility, ensuring all dates consistently display in DD/MM/YYYY format instead of US MM/DD/YYYY format or raw backend YYYY-MM-DD.
+# # #   [ 2 0 2 6 - 0 7 - 2 5   1 1 : 2 0 : 0 0 ]   S t r i c t   L e d g e r   P r o t e c t i o n   I m p l e m e n t a t i o n  
+ -   I m p l e m e n t e d   P a y m e n t A l l o c a t i o n   j u n c t i o n   t a b l e .  
+ -   E x e c u t e d   A l e m b i c   M i g r a t i o n   c o m m a n d :   u v   r u n   a l e m b i c   r e v i s i o n   - - a u t o g e n e r a t e   - m   \  
+ A d d  
+ P a y m e n t A l l o c a t i o n  
+ m o d e l \  
+ -   E x e c u t e d   A l e m b i c   U p g r a d e   c o m m a n d :   u v   r u n   a l e m b i c   u p g r a d e   h e a d  
+ -   U p d a t e d   b a c k e n d   p a y m e n t s ,   p u r c h a s e s ,   a n d   s a l e s   e n d p o i n t s .  
+  -   A d d e d   a   P a y m e n t   H i s t o r y   U I   t o   t h e   P a r t y D e t a i l s M o d a l .  
+ 
+### [2026-07-26 20:55:00] NotNullViolationError Fix
+**User Request:** Reported `asyncpg.exceptions.NotNullViolationError: null value in column "is_locked" of relation "purchases" violates not-null constraint`.
+**Agent Actions:** Fixed the issue by adding the missing `is_locked` boolean field to the `Purchase` and `Sale` SQLAlchemy models, as well as the `PurchaseBase` and `SaleBase` Pydantic schemas. This ensures SQLAlchemy defaults the field to `False` on insertion, satisfying the DB constraint.
+
+### [2026-07-26 21:05:00] Strict Bill Locking Enforcement
+**User Request:** "in that there are collection payment amount is applied to Purchase or Sale Bill, it need to stop the delete the bill, before it need to delete or edit the collection payment... in the frontend can be visible, while clicking it not allow with validation message"
+**Agent Actions:** Used `/planning-and-task-breakdown` to draft a plan. Updated `NewPurchaseScreen.tsx` and `NewSaleScreen.tsx` so clicking Edit on a locked bill pops an alert. Updated backend `purchases.py` and `sales.py` to return HTTP 400 when attempting to update or delete a locked bill.
+
+### [2026-07-26 20:45:00] Run Backend Command Help
+**User Request:** give me a backend command run the project
+**Agent Actions:** Provided `uv run python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
+[2026-07-26 21:31:06] Replaced hallucinated Payment History and Delete features with actual working code across the database, backend, and frontend.
+
+[2026-07-26 21:33:03] Fixed 404 route matching issue in payments.py by changing GET, DELETE, and PUT endpoints to include /collection prefix.
+
+[2026-07-26 21:40:09] Implemented user request to choose date range (From/To) and moved the delete button inside the edit modal in the Payment History tab.
+The agent traced the source of the mathematical error in the PUT collection payment endpoint where previous payment logic resulted in an incorrect deduction of balance. It fundamentally resolved the issue across all CRUD endpoints in payments.py by replacing incremental math with an absolute recalculation derived directly from unpaid purchase and sale bills (recalculate_party_balance). 
+C h a t   i n t e r a c t i o n   a t   2 0 2 6 - 0 7 - 2 6 T 2 2 : 0 4 : 0 0 + 0 5 : 3 0 :   F i x e d   e d i t   c o l l e c t i o n   p a y m e n t   f u n c t i o n a l i t y   t h a t   i m p r o p e r l y   c r e a t e d   n e w   t r a n s a c t i o n s   i n s t e a d   o f   m o d i f y i n g   t h e   e x i s t i n g   o n e .   A l s o   c o r r e c t e d   a u t o f l u s h   l o g i c   s o   t h e   b a l a n c e   a c c u r a t e l y   r e f l e c t s   e d i t   a m o u n t s   w i t h o u t   s u b t r a c t i o n   e r r o r s .  
+ C h a t   i n t e r a c t i o n   a t   2 0 2 6 - 0 7 - 2 6 T 2 2 : 3 9 : 0 0 + 0 5 : 3 0 :   F i x e d   l o c k i n g   b u g   w h e r e   b i l l s   w i t h   u p f r o n t   p a y m e n t s   w o u l d n ' t   u n l o c k   w h e n   t h e i r   c o l l e c t i o n   p a y m e n t s   w e r e   d e l e t e d .   A l s o   r a n   a   s c r i p t   t o   m a n u a l l y   u n l o c k   t h e   s t u c k   b i l l s   i n   t h e   d a t a b a s e .  
+ C h a t   i n t e r a c t i o n   a t   2 0 2 6 - 0 7 - 2 6 T 2 3 : 2 9 : 0 0 + 0 5 : 3 0 :   A d d e d   r e f r e s h   b u t t o n s   t o   D a s h b o a r d   a n d   E x p e n s e s   s c r e e n s .  
+ C h a t   i n t e r a c t i o n   a t   2 0 2 6 - 0 7 - 2 6 T 2 3 : 3 4 : 1 7 + 0 5 : 3 0 :   F i x e d   s t a t e   m a n a g e m e n t   s o   t h a t   n e w   e x p e n s e   c a t e g o r i e s   i n s t a n t l y   a p p e a r   i n   t h e   p a r e n t   s c r e e n   w i t h o u t   n e e d i n g   a   m a n u a l   r e f r e s h .  
+ C h a t   i n t e r a c t i o n   a t   2 0 2 6 - 0 7 - 2 6 T 2 3 : 4 0 : 2 1 + 0 5 : 3 0 :   R e m o v e d   O u t s t a n d i n g   s e c t i o n   f r o m   D a s h b o a r d .  
+ C h a t   i n t e r a c t i o n   a t   2 0 2 6 - 0 7 - 2 6 T 2 3 : 4 8 : 2 4 + 0 5 : 3 0 :   R e p l a c e d   p l a c e h o l d e r   v a l u e s   i n   D a s h b o a r d   O u t s t a n d i n g   s e c t i o n   w i t h   l i v e   b a c k e n d   c a l c u l a t e d   d u e s .  
+ C h a t   i n t e r a c t i o n   a t   2 0 2 6 - 0 7 - 2 7 T 0 0 : 0 0 : 1 7 + 0 5 : 3 0 :   S u c c e s s f u l l y   i m p l e m e n t e d   D a t e   F i l t e r i n g   o n   t h e   D a s h b o a r d   u s i n g   D D - M M - Y Y Y Y   f o r m a t   f o r   c u s t o m   d a t e   i n p u t .  
+ C h a t   i n t e r a c t i o n   a t   2 0 2 6 - 0 7 - 2 7 T 0 0 : 1 0 : 3 6 + 0 5 : 3 0 :   F i x e d   a s y n c p g   d a t e t i m e   D a t a E r r o r   o n   d a s h b o a r d   s t a t s .  
+ C h a t   i n t e r a c t i o n   a t   2 0 2 6 - 0 7 - 2 7 T 0 0 : 1 2 : 2 7 + 0 5 : 3 0 :   F i x e d   A t t r i b u t e E r r o r   d u e   t o   E x p e n s e . d a t e   m i s s i n g ;   s w i t c h e d   t o   E x p e n s e . s p e n t _ a t .  
+ U s e r   r e q u e s t e d   t o   r e p l a c e   A l e r t . a l e r t   w i t h   i n l i n e   m e s s a g e s   a n d   c u s t o m   m o d a l s .   I   c r e a t e d   s r c / c o m p o n e n t s / C o n f i r m M o d a l . t s x .   T h e n   I   u p d a t e d   N e w S a l e S c r e e n . t s x ,   N e w P u r c h a s e S c r e e n . t s x ,   N e w P a r t y S c r e e n . t s x ,   E x p e n s e s S c r e e n . t s x ,   E x p e n s e C a t e g o r i e s S c r e e n . t s x ,   D a s h b o a r d S c r e e n . t s x ,   C o l l e c t i o n P a y m e n t S c r e e n . t s x ,   a n d   P a r t y D e t a i l s M o d a l . t s x   t o   u s e   i n l i n e   e r r o r M s g   a n d   s u c c e s s M s g   s t a t e   v a r i a b l e s ,   a n d   t o   u s e   C o n f i r m M o d a l   f o r   d e l e t e   a c t i o n s .  
+ U s e r   p o i n t e d   o u t   t h a t   c l i c k i n g   s a v e   p a r t y   w i t h   n o   f i e l d   e n t e r e d   d o e s   n o t   s h o w   a   v a l i d a t i o n   m e s s a g e .   I   c h e c k e d   N e w P a r t y S c r e e n . t s x   a n d   r e a l i z e d   I   a d d e d   t h e   s t a t e   f o r   t h e   m e s s a g e s   b u t   f o r g o t   t h e   J S X   t o   r e n d e r   t h e m .   I   a d d e d   t h e   i n l i n e   m e s s a g e   r e n d e r i n g   a n d   f i x e d   i t .  
+ U s e r   a s k e d   t o   m o v e   t h e   N a m e   i s   r e q u i r e d   m e s s a g e   t o   b e l o w   t h e   N a m e   f i e l d   r a t h e r   t h a n   a b o v e   t h e   t a b s .   I   u p d a t e d   N e w P a r t y S c r e e n . t s x   t o   r e n d e r   t h e   e r r o r M s g   b e n e a t h   t h e   N a m e   i n p u t   f i e l d ,   a n d   a l s o   c h a n g e   t h e   b o r d e r   c o l o r   t o   r e d   i f   a n   e r r o r   e x i s t s .  
+ U s e r   r e q u e s t e d   t o   m a k e   N a m e ,   M o b i l e   N u m b e r ,   a n d   A d d r e s s   r e q u i r e d   f i e l d s   i n   t h e   n e w   p a r t i e s   s c r e e n .   I   r e f a c t o r e d   t h e   s i n g l e   e r r o r M s g   i n t o   a n   e r r o r s   o b j e c t   s t a t e ,   a d d e d   v a l i d a t i o n   f o r   a l l   t h r e e   f i e l d s   i n   h a n d l e S a v e ,   a n d   u p d a t e d   t h e   J S X   t o   r e n d e r   t h e   s p e c i f i c   e r r o r   m e s s a g e s   d i r e c t l y   b e l o w   e a c h   r e s p e c t i v e   f i e l d .  
+ U s e r   r e q u e s t e d   t o   s t r i c t l y   e n f o r c e   t h e   m o b i l e   n u m b e r   t o   b e   a   1 0 - d i g i t   n u m b e r .   I   a d d e d   m a x L e n g t h = 1 0   t o   t h e   t e x t   i n p u t ,   r e s t r i c t e d   t h e   i n p u t   t o   d i g i t s   o n l y   v i a   r e g e x   o n   c h a n g e   t e x t ,   a n d   a d d e d   a   v a l i d a t i o n   c h e c k   t o   m a k e   s u r e   i t   i s   e x a c t l y   1 0   d i g i t s   b e f o r e   s a v i n g .  
+ U s e r   r e q u e s t e d   t o   m a k e   t h e   O p e n i n g   B a l a n c e   f i e l d   r e q u i r e d   a n d   n o t   h a v e   ' 0 '   p r e p o p u l a t e d .   I   r e m o v e d   t h e   i n i t i a l   ' 0 '   v a l u e ,   u p d a t e d   t h e   f i e l d   t i t l e   w i t h   a n   a s t e r i s k   ( * ) ,   a n d   a d d e d   a   v a l i d a t i o n   c h e c k   f o r c i n g   t h e   u s e r   t o   e x p l i c i t l y   e n t e r   a   v a l u e   ( e v e n   i f   i t   i s   0 )   t o   a v o i d   s k i p p i n g   t h e   f i e l d   a c c i d e n t a l l y .  
+ U s e r   r e q u e s t e d   t o   r e m o v e   t h e   h i n t   a b o u t   u s i n g   n e g a t i v e   v a l u e s   f o r   t h e   O p e n i n g   B a l a n c e ,   a n d   t o   s t r i c t l y   p r e v e n t   t h e   i n p u t   o f   n e g a t i v e   v a l u e s .   I   r e m o v e d   t h e   h i n t   t e x t   a n d   a d d e d   a   r e g e x   f i l t e r   o n   t h e   t e x t   i n p u t   ( i n   b o t h   N e w P a r t y S c r e e n   a n d   P a r t y D e t a i l s M o d a l )   t o   o n l y   a l l o w   n u m b e r s   a n d   d e c i m a l   p o i n t s ,   c o m p l e t e l y   b l o c k i n g   n e g a t i v e   s i g n s .  
+ U s e r   r e q u e s t e d   t o   s h o w   t h e   s u c c e s s   m e s s a g e   ( ' S u p p l i e r   o r   P u r c h a s e r   a d d e d   s u c c e s s f u l l y ' )   o n   t h e   P a r t i e s   l i s t   s c r e e n   r a t h e r   t h a n   o n   t h e   A d d   N e w   P a r t y   f o r m .   I   r e f a c t o r e d   N e w P a r t y S c r e e n   t o   i n s t a n t l y   n a v i g a t e   t o   ' P a r t i e s '   w i t h   a   s u c c e s s M e s s a g e   n a v i g a t i o n   p a r a m e t e r   i n s t e a d   o f   d e l a y i n g .   I   t h e n   u p d a t e d   P a r t i e s S c r e e n   t o   r e a d   r o u t e . p a r a m s . s u c c e s s M e s s a g e ,   d i s p l a y   a   g r e e n   b a n n e r   b e l o w   t h e   h e a d e r ,   a n d   a u t o m a t i c a l l y   c l e a r   i t   a f t e r   3   s e c o n d s .  
+ U s e r   r e p o r t e d   a   R e a c t   N a v i g a t i o n   e r r o r   a b o u t   ' N A V I G A T E '   w i t h   p a y l o a d   n o t   b e i n g   h a n d l e d   b y   a n y   n a v i g a t o r .   I   f o u n d   t h a t   t h e   ' P a r t i e s '   s c r e e n   i s   i n s i d e   t h e   ' M a i n T a b s '   n a v i g a t o r .   I   c o r r e c t e d   t h e   n a v i g a t i o n   c a l l   t o   t a r g e t   ' M a i n T a b s '   w i t h   s c r e e n :   ' P a r t i e s '   t o   f i x   t h e   n e s t e d   n a v i g a t i o n   p a y l o a d   i s s u e .  
+ U s e r   r e q u e s t e d   t o   m a k e   t h e   s u c c e s s   m e s s a g e   a   ' t o a s t '   t h a t   d i s p l a y s   f o r   o n l y   2   s e c o n d s   i n s t e a d   o f   a   b a n n e r .   I   r e d u c e d   t h e   s e t T i m e o u t   t o   2 0 0 0   m i l l i s e c o n d s   a n d   c o m p l e t e l y   c h a n g e d   t h e   V i e w   s t y l e s   t o   u s e   a b s o l u t e   p o s i t i o n i n g ,   e l e v a t e d   z - i n d e x ,   a n d   a   d a r k   r o u n d e d   b a c k g r o u n d ,   e f f e c t i v e l y   c o n v e r t i n g   i t   i n t o   a   b o t t o m   f l o a t i n g   t o a s t .  
+ U s e r   r e q u e s t e d   t o   s h o r t e n   t h e   t o a s t   v i s i b i l i t y   d u r a t i o n   f r o m   2   s e c o n d s   t o   1 . 5   s e c o n d s .   I   u p d a t e d   t h e   s e t T i m e o u t   i n   P a r t i e s S c r e e n . t s x   t o   1 5 0 0   m i l l i s e c o n d s .  
+ U s e r   r e p o r t e d   t h e   t o a s t   m e s s a g e   w a s   n o t   h i d i n g .   I   f o u n d   a   b u g   w h e r e   c l e a r i n g   t h e   r o u t e   p a r a m e t e r s   w a s   p r e m a t u r e l y   t r i g g e r i n g   t h e   u s e E f f e c t   c l e a n u p ,   c a n c e l l i n g   t h e   t i m e o u t .   I   s e p a r a t e d   t h e   l o g i c   i n t o   t w o   d i s t i n c t   u s e E f f e c t   h o o k s   ( o n e   t o   l o a d   p a r a m s ,   o n e   t o   r u n   t h e   t i m e o u t   o n   s u c c e s s M s g   s t a t e   c h a n g e )   a n d   c h a n g e d   t h e   t o a s t   c o l o r   t o   t h e   r e q u e s t e d   S u c c e s s G r e e n   ( # 0 5 9 6 6 9 ) .  
+ U s e r   m e n t i o n e d   t h a t   a d d i n g   a   n e w   p u r c h a s e   b i l l   w a s   s h o w i n g   t h e   ' P u r c h a s e r '   d r o p   d o w n   a n d   d e f a u l t i n g   t o   t h e   f i r s t   o n e .   I   i n v e s t i g a t e d   a n d   r e a l i z e d   t h a t   N e w P u r c h a s e S c r e e n   a n d   N e w S a l e S c r e e n   h a d   t h e i r   P a r t y   f i l t e r s   s w a p p e d !   A   P u r c h a s e   s h o u l d   b e   m a d e   f r o m   a   S u p p l i e r ,   a n d   a   S a l e   s h o u l d   b e   m a d e   t o   a   P u r c h a s e r .   I   f i x e d   t h e   l a b e l s   a n d   f i l t e r s   i n   b o t h   f i l e s ,   a n d   m a d e   s u r e   t h e y   d e f a u l t   t o   a n   e m p t y   ' S e l e c t   a . . . '   p r o m p t .  
+ 
+### [2026-07-27 12:30:26]
+User requested to prevent auto-selecting the first purchaser when creating a new record.
+I removed the React.useEffect block in NewPurchaseScreen.tsx that was explicitly looking up the first PURCHASER party and setting it as the form.supplier_id if it was empty.
+
+### [2026-07-27 12:39:12]
+User requested to replace the 'Today' filter in the Dashboard with a DatePicker to choose a specific date.
+I modified DashboardScreen.tsx to replace the static 'Today' filter button with a 'Single Day' DatePicker implementation using @react-native-community/datetimepicker, allowing selection of any single date to view stats for that day.
+
+### [2026-07-27 12:42:20]
+User requested to upgrade the Custom Date Range modal to use DatePicker components instead of text boxes.
+I replaced the TextInput fields in DashboardScreen.tsx with Platform-aware DateTimePicker components (same as the Single Day implementation), and removed manual DD-MM-YYYY regex validation since it is now natively handled by the date objects.
+
+### [2026-07-27 12:44:36]
+User requested to remove the 'This Week', 'This Month', and 'This Year' date filters from the Dashboard.
+I updated DashboardScreen.tsx to remove these options, removed their logic in the getDateRange function, and changed the default filter to the newly created 'Single Day' filter.
+
+### [2026-07-27 12:47:35]
+User requested the 'Custom' button to show the selected dates once the custom filter is applied.
+I updated DashboardScreen.tsx to render the start and end date formatted string instead of the static 'Custom' text whenever the custom filter is active.
+
+### [2026-07-27 12:49:27]
+User requested the Single Day filter button to display the word 'Today' instead of the date if today's date is currently selected.
+I updated DashboardScreen.tsx to perform a .toDateString() check against 
+ew Date(), dynamically rendering 'Today' when appropriate.
+
+### [2026-07-27 12:54:45]
+User reported that the dynamically updating 'Today' label was not working on the web view.
+I refactored the web implementation in DashboardScreen.tsx to match the visual styling of the mobile app by overlaying an invisible native <input type="date"> on top of a custom React Native Text component. This enables us to render the exact same 'Today' logic on Web while preserving the browser's native date picker pop-up.
+
+### [2026-07-27 12:58:23]
+User requested the Outstanding section (which shows Purchaser Dues and Supplier Payables) to be moved below the Stock movement section on the dashboard.
+I swapped the UI blocks in DashboardScreen.tsx to match this requested layout order.
+
+### [2026-07-27 13:00:47]
+User requested to update the Parties screen to show the 'Pending Bill' and 'Balance Due' breakdown exactly like it is presented in the Collection Payment screen.
+I updated PartiesScreen.tsx by replacing the generic 'Owes You/You Owe' tags with the detailed breakdown layout from CollectionPaymentScreen.tsx.
+
+### [2026-07-27 13:06:24]
+User requested search bars to be added in Collection Payment (by party name/mobile), Purchases (by bill number), and Sales (by bill number) pages.
+I read the /frontend-ui-engineering guidelines to ensure the search inputs were styled cleanly and natively (using Lucide search icons and clear buttons) and added front-end ilter() logic to filter the lists dynamically as the user types.
+
+### [2026-07-27 14:32:00]
+User requested the Purchase Report in the Reports Screen to generate a PDF matching the exact layout of \Purchase.html\. 
+The plan was rewritten to detail the exact column-to-column mapping between the HTML and the database schemas. A dropdown was added to select ALL or specific purchasers. 
+I installed \eportlab\ in the backend and generated the PDF precisely mapping the columns with custom column percentages. Expo FileSystem was added to enable downloading and viewing on mobile devices.

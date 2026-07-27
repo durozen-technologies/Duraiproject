@@ -12,6 +12,8 @@ import NewSaleScreen from '../screens/NewSaleScreen';
 import NewPartyScreen from '../screens/NewPartyScreen';
 import ExpensesScreen from '../screens/ExpensesScreen';
 import ExpenseCategoriesScreen from '../screens/ExpenseCategoriesScreen';
+import CollectionPaymentScreen from '../screens/CollectionPaymentScreen';
+import ReportsScreen from '../screens/ReportsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -74,6 +76,8 @@ export function RootNavigator() {
       <Stack.Screen name="NewSale" component={NewSaleScreen} />
       <Stack.Screen name="Expenses" component={ExpensesScreen} />
       <Stack.Screen name="ExpenseCategories" component={ExpenseCategoriesScreen} />
+      <Stack.Screen name="CollectionPayment" component={CollectionPaymentScreen} />
+      <Stack.Screen name="Reports" component={ReportsScreen} />
     </Stack.Navigator>
   );
 }
