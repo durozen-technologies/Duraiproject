@@ -61,7 +61,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (token: string) => {
-    setIsLoading(true);
     try {
       await setToken('ledger_token', token);
       setUserToken(token);
@@ -69,20 +68,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Failed to store token', e);
       // Even if storage fails on some strict environments, let the user into the app for the session
       setUserToken(token);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const logout = async () => {
-    setIsLoading(true);
     try {
       await deleteToken('ledger_token');
     } catch (e) {
       console.error('Failed to delete token', e);
     } finally {
       setUserToken(null);
-      setIsLoading(false);
     }
   };
 

@@ -694,3 +694,7 @@ taskkill /F /IM node.exe
 
 **User Request**: in the web it is working... but in the android expo go app, it is bundled, it goes to home page of expo instead of login page
 **Action**: The clue that Web works but Android crashes completely indicated an incompatible native module in the \LoginScreen\. Found that \eact-native-keyboard-aware-scroll-view\ was used, which has fatal native crashes on modern React Native (0.86+) when running on Android due to legacy view manager bindings. Replaced it with standard \ScrollView\ and \KeyboardAvoidingView\ to fix the crash.
+
+### [2026-07-28 16:53:50] USER: in the login page, keep the keyboard avoid view like purchase page method, keep the visible icon on login password section
+
+AI: Updated LoginScreen.tsx to include enableOnAndroid and extraScrollHeight properties to the KeyboardAwareScrollView and added a show/hide password toggle (using lucide-react-native Eye/EyeOff icons) on the password TextInput.

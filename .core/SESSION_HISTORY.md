@@ -593,3 +593,7 @@ px tsc --noEmit and found compilation errors. Removed invalid onClick properties
 
 ### [2026-07-28 15:45] Fix Android Native Crash in LoginScreen
 - Replaced legacy \eact-native-keyboard-aware-scroll-view\ with standard \KeyboardAvoidingView\ and \ScrollView\ in \LoginScreen.tsx\. The legacy package is incompatible with React Native 0.86+ New Architecture and was causing an immediate native crash on Android when the component mounted, while working fine on Web.
+
+### [2026-07-28 16:53:46] Update Login Screen
+- Added enableOnAndroid and extraScrollHeight to KeyboardAwareScrollView in LoginScreen.
+- Added show/hide password toggle to password input field.

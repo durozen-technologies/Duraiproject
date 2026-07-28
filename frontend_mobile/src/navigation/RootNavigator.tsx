@@ -1,8 +1,9 @@
 import React from 'react';
+import { Platform, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LayoutGrid, ShoppingCart, Tag, Users, Receipt } from 'lucide-react-native';
-import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
 import DashboardScreen from '../screens/DashboardScreen';
@@ -47,13 +48,38 @@ export const linking = {
   }
 };
 
+const TAB_BAR_CONTENT_HEIGHT = 56;
+
 function MainTabNavigator() {
+  const insets = useSafeAreaInsets();
+  // Fixed height/paddingBottom: 10 was overriding React Navigation's safe-area
+  // padding and burying tabs under Android's system nav buttons.
+  const bottomInset =
+    Platform.OS === 'android'
+      ? Math.max(insets.bottom, 48)
+      : Math.max(insets.bottom, 0);
+
   return (
     <Tab.Navigator
       screenOptions={{
         tabBarActiveTintColor: '#006948',
         tabBarInactiveTintColor: '#4b5563',
-        tabBarStyle: { height: 60, paddingBottom: 10, paddingTop: 10 },
+        tabBarStyle: {
+          height: TAB_BAR_CONTENT_HEIGHT + bottomInset,
+          paddingTop: 6,
+          paddingBottom: bottomInset,
+          backgroundColor: '#ffffff',
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: '#e5e7eb',
+          elevation: 0,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+        },
+        tabBarItemStyle: {
+          paddingTop: 2,
+        },
         headerShown: false,
       }}
     >
@@ -97,15 +123,7 @@ function MainTabNavigator() {
 }
 
 export function RootNavigator() {
-  const { isLoading, userToken } = useAuth();
-
-  if (isLoading) {
-    return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <ActivityIndicator size="large" color="#006948" />
-      </View>
-    );
-  }
+  const { userToken } = useAuth();
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
