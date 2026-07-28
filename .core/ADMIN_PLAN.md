@@ -1,9 +1,9 @@
 # Admin Flow Implementation Plan
 
-*This file will serve as the master document for tracking the development and full flow of the Admin side of the BROILER 360 Application.*
+*This file will serve as the master document for tracking the development and full flow of the Admin side of the LedgerDesk Application.*
 
 ## What We Have Done Till Now
-1. **Initial Setup:** Migrated `.agents` and `.core` docs from Duro Tracker to fit BROILER 360 requirements.
+1. **Initial Setup:** Migrated `.agents` and `.core` docs from Duro Tracker to fit LedgerDesk requirements.
 
 ---
 

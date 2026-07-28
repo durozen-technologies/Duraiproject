@@ -38,7 +38,6 @@ class PartyResponse(PartyBase):
     total_pending_invoice_amount: float = 0.0
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 from sqlalchemy import func

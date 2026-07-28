@@ -42,6 +42,29 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
     }
   });
 
+  React.useEffect(() => {
+    const loadGrams = async () => {
+      try {
+        const res = await client.get('/settings/empty_bird_weight_g');
+        if (res.data && res.data.value !== null) {
+          setForm(f => ({ ...f, empty_bird_weight_g: res.data.value }));
+        }
+      } catch (e) {
+        console.error("Failed to load empty bird weight", e);
+      }
+    };
+    loadGrams();
+  }, []);
+
+  const updateEmptyBirdWeight = async (v: string) => {
+    setForm(f => ({ ...f, empty_bird_weight_g: v }));
+    try {
+      await client.put('/settings/empty_bird_weight_g', { value: v });
+    } catch (e) {
+      console.error("Failed to save empty bird weight", e);
+    }
+  };
+
   const [isEditingBirds, setIsEditingBirds] = useState(false);
   const [isEditingNetWeight, setIsEditingNetWeight] = useState(false);
   const [isEditingGrams, setIsEditingGrams] = useState(false);
@@ -436,7 +459,7 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
                 {isEditingGrams ? (
                   <TextInput
                     value={form.empty_bird_weight_g}
-                    onChangeText={(v) => setForm({...form, empty_bird_weight_g: v})}
+                    onChangeText={updateEmptyBirdWeight}
                     onBlur={() => setIsEditingGrams(false)}
                     keyboardType="numeric"
                     autoFocus

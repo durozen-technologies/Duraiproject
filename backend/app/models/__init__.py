@@ -1,3 +1,4 @@
+
 from app.db.database import Base
 from .enums import PartyType, TransactionType
 from .user import User
@@ -8,6 +9,7 @@ from .expense import ExpenseCategory, Expense
 from .transaction import PaymentTransaction
 from .payment_allocation import PaymentAllocation
 from .stock_override import StockOverride
+from .setting import Setting
 
 __all__ = [
     "Base",
@@ -20,5 +22,6 @@ __all__ = [
     "ExpenseCategory",
     "Expense",
     "PaymentTransaction",
-    "PaymentAllocation"
+    "PaymentAllocation",
+    "Setting"
 ]

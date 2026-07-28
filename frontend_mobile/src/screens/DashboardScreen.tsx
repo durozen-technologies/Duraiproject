@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, RefreshControl, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TrendingUp, ShoppingCart, Receipt, BarChart2, Users, Truck, ChevronRight, Wallet, Edit2, FileText, X, History, FileStack, RefreshCcw, Calendar } from 'lucide-react-native';
+import { TrendingUp, ShoppingCart, Receipt, BarChart2, Users, Truck, ChevronRight, Wallet, Edit2, FileText, X, History, FileStack, RefreshCcw, Calendar, LogOut } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import client from '../api/client';
 import { formatDateToDDMMYYYY } from '../utils/formatDate';
+import { useAuth } from '../context/AuthContext';
 
 export default function DashboardScreen() {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
+  const { logout } = useAuth();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
@@ -141,17 +143,26 @@ export default function DashboardScreen() {
     purchaser_dues: 0,
     supplier_payables: 0
   };
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Top App Bar */}
       <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
-        <Text className="text-xl font-bold text-[#006948]">Broiler 360</Text>
-        <TouchableOpacity
-          onPress={onRefresh}
-          className="p-2 bg-gray-100 rounded-full"
-        >
-          <RefreshCcw color="#374151" size={18} />
-        </TouchableOpacity>
+        <Text className="text-xl font-bold text-[#006948]">LedgerDesk</Text>
+        <View className="flex-row items-center gap-2">
+          <TouchableOpacity
+            onPress={onRefresh}
+            className="p-2 bg-gray-100 rounded-full"
+          >
+            <RefreshCcw color="#374151" size={18} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={logout}
+            className="p-2 bg-red-50 rounded-full"
+          >
+            <LogOut color="#ef4444" size={18} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView

@@ -21,7 +21,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    openapi_url=None if settings.PRODUCTION else f"{settings.API_V1_STR}/openapi.json",
+    docs_url=None if settings.PRODUCTION else "/docs",
+    redoc_url=None if settings.PRODUCTION else "/redoc",
     lifespan=lifespan,
 )
 
@@ -33,6 +35,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+async def root():
+    return {
+        "app": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "message": "Welcome to the LedgerDesk API",
+        "docs": "Disabled in production" if settings.PRODUCTION else "/docs"
+    }
 
 @app.get("/health")
 async def health_check():

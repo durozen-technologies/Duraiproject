@@ -1,0 +1,71 @@
+name: Android Development Debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - "frontend_mobile/**"
+      - ".github/workflows/android-dev-apk.yml"
+
+concurrency:
+  group: android-dev-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-dev-apk:
+    name: Build LedgerDesk Dev Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: frontend_mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend_mobile/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --clean --non-interactive
+        env:
+          EXPO_NO_TELEMETRY: 1
+
+      - name: Build development debug APK
+        working-directory: frontend_mobile/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=512m"
+
+      - name: Stage APK artifact
+        run: |
+          mkdir -p ../artifacts
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+            "../artifacts/LedgerDesk-dev-debug-${GITHUB_SHA::7}.apk"
+          ls -lh ../artifacts
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LedgerDesk-dev-debug-${{ github.sha }}
+          path: artifacts/LedgerDesk-dev-debug-*.apk
+          if-no-files-found: error
+          retention-days: 30

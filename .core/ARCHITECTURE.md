@@ -1,9 +1,9 @@
-# BROILER 360 Architecture
+# LedgerDesk Architecture
 
 ## Architectural Changes Log
 *Note: Each time the architecture changes, append the change in this section with a timestamp. NEVER overwrite the historical architecture.*
 
-### [2026-07-21] Initial BROILER 360 Architecture Tracking
+### [2026-07-21] Initial LedgerDesk Architecture Tracking
 
 ## Application Type
 Single-tenant B2B application for Poultry Business Management (Wholesalers, Farms, Chicken Shops). Supports both Android Mobile (primary) and Desktop/Web (for office use).

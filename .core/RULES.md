@@ -1,4 +1,4 @@
-# BROILER 360 Coding Rules & Constraints
+# LedgerDesk Coding Rules & Constraints
 
 ## 1. Python Backend (FastAPI)
 - **Type Hinting:** Strictly use type hints for all function arguments and return types.

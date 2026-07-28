@@ -1,15 +1,18 @@
 {
   "expo": {
-    "name": "frontend_mobile",
+    "name": "LedgerDesk",
     "slug": "frontend_mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "scheme": "ledgerdesk",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ledgerdesk.app"
     },
     "android": {
+      "package": "com.ledgerdesk.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -19,9 +22,11 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
+      "expo-dev-client",
       "@react-native-community/datetimepicker",
       "expo-sharing"
     ]

@@ -3,13 +3,13 @@
 ## Data Models Changes Log
 *Note: Each time the data models change, append the change in this section with a timestamp. NEVER overwrite historical models.*
 
-### [2026-07-21] Initial BROILER 360 Models Tracked
+### [2026-07-21] Initial LedgerDesk Models Tracked
 
 ## Database Operations
 Single-tenant PostgreSQL schema (`public`).
 
 ### Module Data Models
-Below is the list of models tracked in the BROILER 360 system:
+Below is the list of models tracked in the LedgerDesk system:
 
 **User Model (`users`)**
 - Represents authentication credentials for the app.

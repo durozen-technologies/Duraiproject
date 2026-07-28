@@ -1,6 +1,6 @@
-# Application Design Prompt – DURAI PROJECT (Complete Poultry Business Management Platform)
+# Application Design Prompt – LEDGERDESK (Complete Poultry Business Management Platform)
 
-Design and develop a modern, mobile-first poultry business management application named **BROILER 360**. The application is intended for poultry wholesalers, farms, and chicken shops to digitally manage their entire business from a single platform. The focus should be on **speed, simplicity, and real-time business tracking**, replacing traditional paper registers.
+Design and develop a modern, mobile-first poultry business management application named **LEDGERDESK**. The application is intended for poultry wholesalers, farms, and chicken shops to digitally manage their entire business from a single platform. The focus should be on **speed, simplicity, and real-time business tracking**, replacing traditional paper registers.
 
 The application should support both **Android mobile devices** (primary platform) and a **responsive desktop/web interface** for office use. Both platforms must share the same backend and database so that all information remains synchronized in real time.
 

@@ -2,6 +2,8 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { LayoutGrid, ShoppingCart, Tag, Users, Receipt } from 'lucide-react-native';
+import { View, ActivityIndicator } from 'react-native';
+import { useAuth } from '../context/AuthContext';
 
 import DashboardScreen from '../screens/DashboardScreen';
 import PartiesScreen from '../screens/PartiesScreen';
@@ -14,9 +16,36 @@ import ExpensesScreen from '../screens/ExpensesScreen';
 import ExpenseCategoriesScreen from '../screens/ExpenseCategoriesScreen';
 import CollectionPaymentScreen from '../screens/CollectionPaymentScreen';
 import ReportsScreen from '../screens/ReportsScreen';
+import LoginScreen from '../screens/LoginScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+
+export const linking = {
+  prefixes: [],
+  config: {
+    screens: {
+      Login: 'login',
+      MainTabs: {
+        path: '',
+        screens: {
+          Dashboard: 'dashboard',
+          Purchases: 'purchases',
+          Sales: 'sales',
+          Parties: 'parties',
+          Expenses: 'expenses',
+        }
+      },
+      NewParty: 'parties/new',
+      NewPurchase: 'purchases/new',
+      NewSale: 'sales/new',
+      Expenses: 'expenses/all',
+      ExpenseCategories: 'expenses/categories',
+      CollectionPayment: 'collections/new',
+      Reports: 'reports'
+    }
+  }
+};
 
 function MainTabNavigator() {
   return (
@@ -68,16 +97,32 @@ function MainTabNavigator() {
 }
 
 export function RootNavigator() {
+  const { isLoading, userToken } = useAuth();
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 justify-center items-center bg-white">
+        <ActivityIndicator size="large" color="#006948" />
+      </View>
+    );
+  }
+
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-      <Stack.Screen name="NewParty" component={NewPartyScreen} />
-      <Stack.Screen name="NewPurchase" component={NewPurchaseScreen} />
-      <Stack.Screen name="NewSale" component={NewSaleScreen} />
-      <Stack.Screen name="Expenses" component={ExpensesScreen} />
-      <Stack.Screen name="ExpenseCategories" component={ExpenseCategoriesScreen} />
-      <Stack.Screen name="CollectionPayment" component={CollectionPaymentScreen} />
-      <Stack.Screen name="Reports" component={ReportsScreen} />
+      {userToken == null ? (
+        <Stack.Screen name="Login" component={LoginScreen} />
+      ) : (
+        <>
+          <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+          <Stack.Screen name="NewParty" component={NewPartyScreen} />
+          <Stack.Screen name="NewPurchase" component={NewPurchaseScreen} />
+          <Stack.Screen name="NewSale" component={NewSaleScreen} />
+          <Stack.Screen name="Expenses" component={ExpensesScreen} />
+          <Stack.Screen name="ExpenseCategories" component={ExpenseCategoriesScreen} />
+          <Stack.Screen name="CollectionPayment" component={CollectionPaymentScreen} />
+          <Stack.Screen name="Reports" component={ReportsScreen} />
+        </>
+      )}
     </Stack.Navigator>
   );
 }

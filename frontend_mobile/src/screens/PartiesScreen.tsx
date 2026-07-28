@@ -85,14 +85,12 @@ export default function PartiesScreen({ navigation, route }: any) {
       <View className="flex-row border-b border-gray-200 bg-white">
         <TouchableOpacity 
           className={`flex-1 py-3 items-center ${tab === 'SUPPLIER' ? 'border-b-2 border-[#006948]' : ''}`}
-          onClick={() => setTab('SUPPLIER')}
           onPress={() => setTab('SUPPLIER')}
         >
           <Text className={`text-sm font-semibold ${tab === 'SUPPLIER' ? 'text-[#006948]' : 'text-gray-500'}`}>Suppliers</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           className={`flex-1 py-3 items-center ${tab === 'PURCHASER' ? 'border-b-2 border-[#006948]' : ''}`}
-          onClick={() => setTab('PURCHASER')}
           onPress={() => setTab('PURCHASER')}
         >
           <Text className={`text-sm font-semibold ${tab === 'PURCHASER' ? 'text-[#006948]' : 'text-gray-500'}`}>Purchasers</Text>
