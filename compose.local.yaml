@@ -1,0 +1,12 @@
+# Local-only overlay: publishes host ports that production leaves to Traefik.
+#   docker compose -f compose.yaml -f compose.local.yaml up -d --build
+# Never referenced by Dokploy, which builds compose.yaml explicitly.
+
+services:
+  backend:
+    ports:
+      - "${BACKEND_PUBLISH_PORT:-8000}:8000"
+
+  frontend:
+    ports:
+      - "${FRONTEND_PUBLISH_PORT:-80}:80"

@@ -1,12 +1,12 @@
-# LedgerDesk — production Compose stack
+# LedgerDesk — production Compose stack (Dokploy friendly)
 #
-#   cp .env.example .env   # fill secrets (required for interpolation)
-#   docker compose up -d --build
+# frontend/backend are NOT published on host ports: Dokploy's Traefik routes to
+# them by domain, and publishing collides with other stacks on the same server.
+# For local runs that need host ports:
+#   docker compose -f compose.yaml -f compose.local.yaml up -d --build
 #
-# Ports (override in .env):
-#   FRONTEND_PUBLISH_PORT  default 80
-#   BACKEND_PUBLISH_PORT   default 8000
-#   POSTGRES_PUBLISH_PORT  default 5432  (DB is intentionally published)
+# Postgres IS published so you can connect with an external client.
+# If the host already uses 5432, set POSTGRES_PUBLISH_PORT to a free port.
 
 name: ledgerdesk
 
@@ -14,11 +14,9 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ledgerdesk_app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the environment}
       POSTGRES_DB: ${POSTGRES_DB:-ledgerdesk}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -54,24 +52,22 @@ services:
       dockerfile: Dockerfile
     image: ledgerdesk-backend:latest
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
       PRODUCTION: "True"
       # Reach Postgres by Compose DNS name (never localhost inside the network)
       POSTGRES_SERVER: db
       POSTGRES_PORT: "5432"
       POSTGRES_USER: ${POSTGRES_USER:-ledgerdesk_app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the environment}
       POSTGRES_DB: ${POSTGRES_DB:-ledgerdesk}
-      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the environment}
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
       PROJECT_NAME: ${PROJECT_NAME:-LedgerDesk}
       VERSION: ${VERSION:-0.1.0}
       API_V1_STR: ${API_V1_STR:-/api/v1}
-    ports:
-      - "${BACKEND_PUBLISH_PORT:-8000}:8000"
+    expose:
+      - "8000"
     networks:
       - internal
     depends_on:
@@ -94,16 +90,14 @@ services:
       context: ./frontend_mobile
       dockerfile: Dockerfile
       args:
+        # Baked into the bundle at build time — must be the public API URL
         EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:8000/api}
     image: ledgerdesk-frontend:latest
     restart: unless-stopped
-    ports:
-      - "${FRONTEND_PUBLISH_PORT:-80}:80"
+    expose:
+      - "80"
     networks:
       - internal
-    depends_on:
-      backend:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
       interval: 30s
