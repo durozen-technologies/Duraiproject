@@ -6,10 +6,6 @@ import * as SecureStore from 'expo-secure-store';
 // IMPORTANT: Replace this IP with your computer's local IP address (e.g. 192.168.x.x) if testing on a physical device.
 // If testing on Android Emulator, use 10.0.2.2.
 const getApiUrl = () => {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return `http://${window.location.hostname}:8000/api`;
-  }
-
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
   if (envUrl) {
     if (Platform.OS === 'android' && envUrl.includes('localhost')) {
@@ -17,7 +13,12 @@ const getApiUrl = () => {
     }
     return envUrl;
   }
-  
+
+  // Dev fallback: same host, backend on :8000
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return `http://${window.location.hostname}:8000/api`;
+  }
+
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:8000/api';
   }

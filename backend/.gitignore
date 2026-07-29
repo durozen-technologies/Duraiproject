@@ -1,13 +1,26 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
+*$py.class
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+.eggs/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
-.venv
+.venv/
+venv/
 
-# Environment variables
+# Environment variables / secrets
 .env
+.env.*
+!.env.example
+
+# Local tooling
+.uv/
