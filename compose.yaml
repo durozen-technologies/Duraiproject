@@ -99,9 +99,8 @@ services:
       - "${LEDGERDESK_WEB_PORT:-8080}:80"
     networks:
       - internal
-    depends_on:
-      backend:
-        condition: service_healthy
+    # No depends_on: the site is static and the browser calls the API directly,
+    # so an unhealthy backend must not stop the site from being served.
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
       interval: 30s
