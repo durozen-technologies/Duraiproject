@@ -7,6 +7,11 @@
     "icon": "./assets/icon.png",
     "scheme": "ledgerdesk",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#006948"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ledgerdesk.app"
@@ -14,7 +19,7 @@
     "android": {
       "package": "com.ledgerdesk.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#006948",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

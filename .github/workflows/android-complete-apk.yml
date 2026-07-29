@@ -1,0 +1,145 @@
+name: Android Complete APK
+
+# Builds a standalone installable APK. Trigger manually and pass only the backend URL.
+# Example: https://api.ledgerdesk.durozen.in/api
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend_api_url:
+        description: Backend API base URL (must include /api), e.g. https://api.example.com/api
+        required: true
+        type: string
+      app_version:
+        description: Optional Android versionName override (leave blank to keep app.json)
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: android-complete-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-complete-apk:
+    name: Build LedgerDesk Complete APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: frontend_mobile
+    env:
+      EXPO_PUBLIC_API_URL: ${{ inputs.backend_api_url }}
+      EXPO_NO_TELEMETRY: 1
+      CI: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate backend API URL
+        run: |
+          if [ -z "$EXPO_PUBLIC_API_URL" ]; then
+            echo "::error::backend_api_url is required"
+            exit 1
+          fi
+          case "$EXPO_PUBLIC_API_URL" in
+            http://*|https://*) ;;
+            *)
+              echo "::error::backend_api_url must start with http:// or https://"
+              exit 1
+              ;;
+          esac
+          echo "Building standalone APK against: $EXPO_PUBLIC_API_URL"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend_mobile/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Prepare standalone app config
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+          const app = JSON.parse(fs.readFileSync("app.json", "utf8"));
+          // Remove expo-dev-client so the APK is a complete standalone app
+          app.expo.plugins = (app.expo.plugins || []).filter((p) => {
+            const name = Array.isArray(p) ? p[0] : p;
+            return name !== "expo-dev-client";
+          });
+          const version = process.env.APP_VERSION_INPUT;
+          if (version && version.trim()) {
+            app.expo.version = version.trim();
+          }
+          fs.writeFileSync("app.json", JSON.stringify(app, null, 2) + "\n");
+          console.log("plugins:", app.expo.plugins);
+          console.log("version:", app.expo.version);
+          NODE
+        env:
+          APP_VERSION_INPUT: ${{ inputs.app_version }}
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --clean --non-interactive
+
+      - name: Ensure debug keystore for release signing
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Build standalone release APK
+        working-directory: frontend_mobile/android
+        run: |
+          ./gradlew assembleRelease --no-daemon --stacktrace \
+            -Pandroid.injected.signing.store.file=$HOME/.android/debug.keystore \
+            -Pandroid.injected.signing.store.password=android \
+            -Pandroid.injected.signing.key.alias=androiddebugkey \
+            -Pandroid.injected.signing.key.password=android
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=512m"
+
+      - name: Stage APK artifact
+        run: |
+          mkdir -p ../artifacts
+          APK_SRC=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_SRC" ]; then
+            echo "::error::No release APK found under android/app/build/outputs/apk/release"
+            find android/app/build/outputs -type f -name "*.apk" || true
+            exit 1
+          fi
+          OUT="../artifacts/LedgerDesk-${GITHUB_SHA::7}.apk"
+          cp "$APK_SRC" "$OUT"
+          ls -lh ../artifacts
+          echo "APK=$OUT" >> "$GITHUB_STEP_SUMMARY"
+          echo "Backend=$EXPO_PUBLIC_API_URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LedgerDesk-complete-${{ github.sha }}
+          path: artifacts/LedgerDesk-*.apk
+          if-no-files-found: error
+          retention-days: 30
