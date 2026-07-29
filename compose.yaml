@@ -1,12 +1,10 @@
 # LedgerDesk — production Compose stack
 #
-# All three services publish host ports (configurable to avoid collisions with
-# other stacks on the same Dokploy host — e.g. existing FastAPI on :8000 / Postgres on :5432).
-#
-# Defaults chosen to avoid common conflicts:
-#   FRONTEND_PUBLISH_PORT=8080  → http://HOST:8080
-#   BACKEND_PUBLISH_PORT=8001   → http://HOST:8001
-#   POSTGRES_PUBLISH_PORT=5433  → HOST:5433
+# All three services publish host ports. Defaults avoid the ports already used
+# by other stacks on this Dokploy host (FastAPI on :8000, Postgres on :5432):
+#   LEDGERDESK_WEB_PORT=8080  → http://HOST:8080
+#   LEDGERDESK_API_PORT=8001  → http://HOST:8001
+#   LEDGERDESK_DB_PORT=5433   → HOST:5433
 #
 # Set EXPO_PUBLIC_API_URL to the publicly reachable backend URL before building,
 # e.g. http://YOUR_SERVER_IP:8001/api or https://api.yourdomain.com/api
@@ -24,7 +22,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PUBLISH_PORT:-5433}:5432"
+      - "${LEDGERDESK_DB_PORT:-5433}:5432"
     networks:
       - internal
     healthcheck:
@@ -70,7 +68,7 @@ services:
       VERSION: ${VERSION:-0.1.0}
       API_V1_STR: ${API_V1_STR:-/api/v1}
     ports:
-      - "${BACKEND_PUBLISH_PORT:-8001}:8000"
+      - "${LEDGERDESK_API_PORT:-8001}:8000"
     networks:
       - internal
     depends_on:
@@ -98,7 +96,7 @@ services:
     image: ledgerdesk-frontend:latest
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PUBLISH_PORT:-8080}:80"
+      - "${LEDGERDESK_WEB_PORT:-8080}:80"
     networks:
       - internal
     depends_on:
