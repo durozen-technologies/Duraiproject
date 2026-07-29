@@ -1,20 +1,15 @@
 # syntax=docker/dockerfile:1
 
-# ── deps: install with Bun ───────────────────────────────────────────────────
-FROM oven/bun:1.2-alpine AS deps
+# ── build: Bun installs deps, Node runs Metro (Bun lacks worker_threads bits) ─
+FROM node:22-alpine AS build
+
+COPY --from=oven/bun:1.2-alpine /usr/local/bin/bun /usr/local/bin/bun
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN bun install
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 
-# ── build: Expo static web export ────────────────────────────────────────────
-FROM oven/bun:1.2-alpine AS build
-
-WORKDIR /app
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY package.json package-lock.json ./
 COPY . .
 
 ARG EXPO_PUBLIC_API_URL=http://localhost:8000/api
@@ -23,7 +18,7 @@ ENV EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL \
     CI=1 \
     EXPO_NO_TELEMETRY=1
 
-RUN bunx expo export --platform web
+RUN npx expo export --platform web --output-dir dist
 
 # ── runtime: nginx alpine serves static site ─────────────────────────────────
 FROM nginx:1.27-alpine AS runtime
