@@ -1,12 +1,15 @@
-# LedgerDesk — production Compose stack (Dokploy friendly)
+# LedgerDesk — production Compose stack
 #
-# frontend/backend are NOT published on host ports: Dokploy's Traefik routes to
-# them by domain, and publishing collides with other stacks on the same server.
-# For local runs that need host ports:
-#   docker compose -f compose.yaml -f compose.local.yaml up -d --build
+# All three services publish host ports (configurable to avoid collisions with
+# other stacks on the same Dokploy host — e.g. existing FastAPI on :8000 / Postgres on :5432).
 #
-# Postgres IS published so you can connect with an external client.
-# If the host already uses 5432, set POSTGRES_PUBLISH_PORT to a free port.
+# Defaults chosen to avoid common conflicts:
+#   FRONTEND_PUBLISH_PORT=8080  → http://HOST:8080
+#   BACKEND_PUBLISH_PORT=8001   → http://HOST:8001
+#   POSTGRES_PUBLISH_PORT=5433  → HOST:5433
+#
+# Set EXPO_PUBLIC_API_URL to the publicly reachable backend URL before building,
+# e.g. http://YOUR_SERVER_IP:8001/api or https://api.yourdomain.com/api
 
 name: ledgerdesk
 
@@ -21,7 +24,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PUBLISH_PORT:-5432}:5432"
+      - "${POSTGRES_PUBLISH_PORT:-5433}:5432"
     networks:
       - internal
     healthcheck:
@@ -66,8 +69,8 @@ services:
       PROJECT_NAME: ${PROJECT_NAME:-LedgerDesk}
       VERSION: ${VERSION:-0.1.0}
       API_V1_STR: ${API_V1_STR:-/api/v1}
-    expose:
-      - "8000"
+    ports:
+      - "${BACKEND_PUBLISH_PORT:-8001}:8000"
     networks:
       - internal
     depends_on:
@@ -90,14 +93,17 @@ services:
       context: ./frontend_mobile
       dockerfile: Dockerfile
       args:
-        # Baked into the bundle at build time — must be the public API URL
-        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:8000/api}
+        # Baked into the bundle at build time — must match the public backend URL
+        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:8001/api}
     image: ledgerdesk-frontend:latest
     restart: unless-stopped
-    expose:
-      - "80"
+    ports:
+      - "${FRONTEND_PUBLISH_PORT:-8080}:80"
     networks:
       - internal
+    depends_on:
+      backend:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
       interval: 30s
