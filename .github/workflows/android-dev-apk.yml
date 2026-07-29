@@ -20,10 +20,22 @@ jobs:
     defaults:
       run:
         working-directory: frontend_mobile
+    env:
+      # Backend API base URL, e.g. https://api.example.com/api
+      EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+      EXPO_NO_TELEMETRY: 1
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Require EXPO_PUBLIC_API_URL secret
+        run: |
+          if [ -z "$EXPO_PUBLIC_API_URL" ]; then
+            echo "::error::Add repository secret EXPO_PUBLIC_API_URL (e.g. https://api.example.com/api)"
+            exit 1
+          fi
+          echo "Using EXPO_PUBLIC_API_URL (length=${#EXPO_PUBLIC_API_URL})"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -46,8 +58,6 @@ jobs:
 
       - name: Generate native Android project
         run: npx expo prebuild --platform android --clean --non-interactive
-        env:
-          EXPO_NO_TELEMETRY: 1
 
       - name: Build development debug APK
         working-directory: frontend_mobile/android
