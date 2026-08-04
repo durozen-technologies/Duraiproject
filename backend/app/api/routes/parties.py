@@ -13,6 +13,7 @@ router = APIRouter()
 
 class PartyBase(BaseModel):
     name: str
+    nickname: Optional[str] = None
     mobile: Optional[str] = None
     address: Optional[str] = None
     type: str # 'supplier' or 'customer'
@@ -21,6 +22,7 @@ class PartyBase(BaseModel):
 
 class PartyUpdate(BaseModel):
     name: Optional[str] = None
+    nickname: Optional[str] = None
     mobile: Optional[str] = None
     address: Optional[str] = None
     is_active: Optional[bool] = None
@@ -48,7 +50,7 @@ async def get_parties(party_type: Optional[str] = None, db: AsyncSession = Depen
     from app.models.sale import Sale
     query = select(Party)
     if party_type:
-        query = query.where(Party.type == PartyType(party_type))
+        query = query.where(Party.type.in_([PartyType(party_type), PartyType.BOTH]))
     result = await db.execute(query)
     parties = result.scalars().all()
     
@@ -140,6 +142,7 @@ async def get_party_pending_bills(party_id: UUID4, db: AsyncSession = Depends(de
 async def create_party(party: PartyCreate, db: AsyncSession = Depends(deps.get_db)):
     db_party = Party(
         name=party.name,
+        nickname=party.nickname,
         mobile=party.mobile,
         address=party.address,
         type=PartyType(party.type),

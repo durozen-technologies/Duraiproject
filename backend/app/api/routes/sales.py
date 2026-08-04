@@ -15,8 +15,11 @@ router = APIRouter()
 
 class SaleBase(BaseModel):
     party_id: UUID4
+    item_id: Optional[UUID4] = None
     vehicle_number: Optional[str] = None
     driver_name: Optional[str] = None
+    driver_id: Optional[UUID4] = None
+    weighbridge_weight: float = 0.0
     weight: float = 0.0
     weight_rate: float = 0.0
     weight_amount: float = 0.0
@@ -28,6 +31,7 @@ class SaleBase(BaseModel):
     total_invoice_amount: float = 0.0
     cash_payment: float = 0.0
     upi_payment: float = 0.0
+    bank_payment: float = 0.0
     balance_amount: float = 0.0
     is_locked: bool = False
 
@@ -53,9 +57,14 @@ async def create_sale(sale_in: SaleCreate, db: AsyncSession = Depends(deps.get_d
         raise HTTPException(status_code=404, detail="Customer not found")
         
     # Generate unique bill_number for sale
-    sale_date = sale_in.date or datetime.now().date()
-    current_year = sale_date.year
-    prefix = f"SAL-{current_year}-"
+    sale_date = sale_in.date or datetime_date.today()
+    
+    if sale_date.month >= 4:
+        fy_year = sale_date.year
+    else:
+        fy_year = sale_date.year - 1
+        
+    prefix = f"SAL-{fy_year}-"
     
     bill_query = await db.execute(
         select(Sale.bill_number)
@@ -81,6 +90,9 @@ async def create_sale(sale_in: SaleCreate, db: AsyncSession = Depends(deps.get_d
         bill_number=new_bill_number,
         vehicle_number=sale_in.vehicle_number,
         driver_name=sale_in.driver_name,
+        driver_id=sale_in.driver_id,
+        item_id=sale_in.item_id,
+        weighbridge_weight=sale_in.weighbridge_weight,
         weight=sale_in.weight,
         weight_rate=sale_in.weight_rate,
         weight_amount=sale_in.weight_amount,
@@ -92,13 +104,14 @@ async def create_sale(sale_in: SaleCreate, db: AsyncSession = Depends(deps.get_d
         total_invoice_amount=sale_in.total_invoice_amount,
         cash_payment=sale_in.cash_payment,
         upi_payment=sale_in.upi_payment,
-        balance_amount=sale_in.total_invoice_amount - (sale_in.cash_payment + sale_in.upi_payment),
+        bank_payment=sale_in.bank_payment,
+        balance_amount=sale_in.total_invoice_amount - (sale_in.cash_payment + sale_in.upi_payment + sale_in.bank_payment),
         is_locked=sale_in.is_locked
     )
     db.add(db_sale)
     await db.flush()
 
-    total_collected = sale_in.cash_payment + sale_in.upi_payment
+    total_collected = sale_in.cash_payment + sale_in.upi_payment + sale_in.bank_payment
     if total_collected > 0:
         txn = PaymentTransaction(
             party_id=sale_in.party_id,
@@ -106,6 +119,7 @@ async def create_sale(sale_in: SaleCreate, db: AsyncSession = Depends(deps.get_d
             type=TransactionType.RECEIVED,
             cash_amount=sale_in.cash_payment,
             upi_amount=sale_in.upi_payment,
+            bank_amount=sale_in.bank_payment,
             total_amount=total_collected
         )
         db.add(txn)
@@ -118,8 +132,11 @@ async def create_sale(sale_in: SaleCreate, db: AsyncSession = Depends(deps.get_d
     return db_sale
 
 @router.get("/", response_model=List[SaleResponse])
-async def get_sales(db: AsyncSession = Depends(deps.get_db)):
-    result = await db.execute(select(Sale).order_by(Sale.date.desc()))
+async def get_sales(driver_id: Optional[UUID4] = None, db: AsyncSession = Depends(deps.get_db)):
+    query = select(Sale).order_by(Sale.date.desc())
+    if driver_id:
+        query = query.where(Sale.driver_id == driver_id)
+    result = await db.execute(query)
     return result.scalars().all()
 
 @router.put("/{sale_id}", response_model=SaleResponse)
@@ -136,7 +153,7 @@ async def update_sale(sale_id: UUID4, sale_in: SaleUpdate, db: AsyncSession = De
     old_customer = result_party.scalar_one_or_none()
 
     # Revert financial impact
-    old_collected = db_sale.cash_payment + db_sale.upi_payment
+    old_collected = db_sale.cash_payment + db_sale.upi_payment + db_sale.bank_payment
     old_customer.current_balance = float(old_customer.current_balance) - float(db_sale.total_invoice_amount)
     old_customer.current_balance = float(old_customer.current_balance) + float(old_collected)
 
@@ -168,6 +185,9 @@ async def update_sale(sale_id: UUID4, sale_in: SaleUpdate, db: AsyncSession = De
     db_sale.date = sale_in.date or db_sale.date
     db_sale.vehicle_number = sale_in.vehicle_number
     db_sale.driver_name = sale_in.driver_name
+    db_sale.driver_id = sale_in.driver_id
+    db_sale.item_id = sale_in.item_id
+    db_sale.weighbridge_weight = sale_in.weighbridge_weight
     db_sale.weight = sale_in.weight
     db_sale.weight_rate = sale_in.weight_rate
     db_sale.weight_amount = sale_in.weight_amount
@@ -179,11 +199,12 @@ async def update_sale(sale_id: UUID4, sale_in: SaleUpdate, db: AsyncSession = De
     db_sale.total_invoice_amount = sale_in.total_invoice_amount
     db_sale.cash_payment = sale_in.cash_payment
     db_sale.upi_payment = sale_in.upi_payment
-    db_sale.balance_amount = sale_in.total_invoice_amount - (sale_in.cash_payment + sale_in.upi_payment)
+    db_sale.bank_payment = sale_in.bank_payment
+    db_sale.balance_amount = sale_in.total_invoice_amount - (sale_in.cash_payment + sale_in.upi_payment + sale_in.bank_payment)
     db_sale.is_locked = sale_in.is_locked
 
     # Create new transaction if paid
-    new_collected = sale_in.cash_payment + sale_in.upi_payment
+    new_collected = sale_in.cash_payment + sale_in.upi_payment + sale_in.bank_payment
     if new_collected > 0:
         new_txn = PaymentTransaction(
             party_id=sale_in.party_id,
@@ -191,6 +212,7 @@ async def update_sale(sale_id: UUID4, sale_in: SaleUpdate, db: AsyncSession = De
             type=TransactionType.RECEIVED,
             cash_amount=sale_in.cash_payment,
             upi_amount=sale_in.upi_payment,
+            bank_amount=sale_in.bank_payment,
             total_amount=new_collected
         )
         db.add(new_txn)
@@ -216,7 +238,7 @@ async def delete_sale(sale_id: UUID4, db: AsyncSession = Depends(deps.get_db)):
     result_party = await db.execute(select(Party).where(Party.id == db_sale.party_id))
     customer = result_party.scalar_one_or_none()
 
-    old_collected = db_sale.cash_payment + db_sale.upi_payment
+    old_collected = db_sale.cash_payment + db_sale.upi_payment + db_sale.bank_payment
     if customer:
         customer.current_balance = float(customer.current_balance) - float(db_sale.total_invoice_amount)
         customer.current_balance = float(customer.current_balance) + float(old_collected)

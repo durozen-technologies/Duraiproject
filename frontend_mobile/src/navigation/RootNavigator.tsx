@@ -3,7 +3,7 @@ import { Platform, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LayoutGrid, ShoppingCart, Tag, Users, Receipt } from 'lucide-react-native';
+import { LayoutGrid, ShoppingCart, Tag, Users, Receipt, Truck } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 
 import DashboardScreen from '../screens/DashboardScreen';
@@ -18,6 +18,12 @@ import ExpenseCategoriesScreen from '../screens/ExpenseCategoriesScreen';
 import CollectionPaymentScreen from '../screens/CollectionPaymentScreen';
 import ReportsScreen from '../screens/ReportsScreen';
 import LoginScreen from '../screens/LoginScreen';
+import DriversScreen from '../screens/DriversScreen';
+import NewDriverScreen from '../screens/NewDriverScreen';
+import DriverDetailsScreen from '../screens/DriverDetailsScreen';
+import ItemsScreen from '../screens/ItemsScreen';
+import NewItemScreen from '../screens/NewItemScreen';
+import BillEntryScreen from '../screens/BillEntryScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -35,15 +41,21 @@ export const linking = {
           Sales: 'sales',
           Parties: 'parties',
           Expenses: 'expenses',
+          Drivers: 'drivers',
         }
       },
       NewParty: 'parties/new',
       NewPurchase: 'purchases/new',
       NewSale: 'sales/new',
+      BillEntry: 'bill-entry',
       Expenses: 'expenses/all',
       ExpenseCategories: 'expenses/categories',
       CollectionPayment: 'collections/new',
-      Reports: 'reports'
+      Reports: 'reports',
+      NewDriver: 'drivers/new',
+      DriverDetails: 'drivers/details',
+      Items: 'items',
+      NewItem: 'items/new',
     }
   }
 };
@@ -118,6 +130,13 @@ function MainTabNavigator() {
           tabBarIcon: ({ color }) => <Receipt color={color} size={24} />,
         }}
       />
+      <Tab.Screen 
+        name="Drivers" 
+        component={DriversScreen} 
+        options={{
+          tabBarIcon: ({ color }) => <Truck color={color} size={24} />,
+        }}
+      />
     </Tab.Navigator>
   );
 }
@@ -135,10 +154,15 @@ export function RootNavigator() {
           <Stack.Screen name="NewParty" component={NewPartyScreen} />
           <Stack.Screen name="NewPurchase" component={NewPurchaseScreen} />
           <Stack.Screen name="NewSale" component={NewSaleScreen} />
+          <Stack.Screen name="BillEntry" component={BillEntryScreen} />
           <Stack.Screen name="Expenses" component={ExpensesScreen} />
           <Stack.Screen name="ExpenseCategories" component={ExpenseCategoriesScreen} />
           <Stack.Screen name="CollectionPayment" component={CollectionPaymentScreen} />
           <Stack.Screen name="Reports" component={ReportsScreen} />
+          <Stack.Screen name="NewDriver" component={NewDriverScreen} />
+          <Stack.Screen name="DriverDetails" component={DriverDetailsScreen} />
+          <Stack.Screen name="Items" component={ItemsScreen} />
+          <Stack.Screen name="NewItem" component={NewItemScreen} />
         </>
       )}
     </Stack.Navigator>

@@ -27,8 +27,8 @@ export default function ReportsScreen() {
     }
   });
 
-  const activePurchasers = parties?.filter((p: any) => p.type === 'PURCHASER' && p.is_active) || [];
-  const activeSuppliers = parties?.filter((p: any) => p.type === 'SUPPLIER' && p.is_active) || [];
+  const activePurchasers = parties?.filter((p: any) => (p.type === 'PURCHASER' || p.type === 'BOTH') && p.is_active) || [];
+  const activeSuppliers = parties?.filter((p: any) => (p.type === 'SUPPLIER' || p.type === 'BOTH') && p.is_active) || [];
 
   const handleDownloadPurchaseReport = async () => {
     setIsDownloading(true);

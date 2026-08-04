@@ -35,6 +35,14 @@ export default function PurchasesScreen({ navigation }: any) {
     }
   });
 
+  const { data: items } = useQuery({
+    queryKey: ['items'],
+    queryFn: async () => {
+      const response = await client.get(`/items/`);
+      return response.data;
+    }
+  });
+
   const onRefresh = React.useCallback(() => {
     refetch();
   }, [refetch]);
@@ -133,7 +141,7 @@ export default function PurchasesScreen({ navigation }: any) {
                 onValueChange={(itemValue) => setSelectedParty(itemValue)}
               >
                 <Picker.Item label="All Parties" value="all" style={{ fontSize: 15 }} />
-                {parties?.filter((p: any) => p.type === 'PURCHASER' && p.is_active !== false).map((party: any) => (
+                {parties?.filter((p: any) => (p.type === 'PURCHASER' || p.type === 'BOTH') && p.is_active !== false).map((party: any) => (
                   <Picker.Item key={party.id} label={party.name} value={party.id} style={{ fontSize: 15 }} />
                 ))}
               </Picker>
@@ -276,6 +284,7 @@ export default function PurchasesScreen({ navigation }: any) {
         ) : (
           filteredPurchases.map((purchase: any) => {
             const partyName = parties?.find((p: any) => p.id === purchase.party_id)?.name || 'Unknown Party';
+            const itemName = items?.find((i: any) => i.id === purchase.item_id)?.name;
             return (
             <TouchableOpacity 
               key={purchase.id} 
@@ -291,6 +300,7 @@ export default function PurchasesScreen({ navigation }: any) {
                     <Text className="font-bold text-gray-900 text-base flex-1" numberOfLines={1}>{partyName}</Text>
                   </View>
                   {purchase.bill_number && <Text className="text-[11px] text-gray-600 font-bold mt-0.5">{purchase.bill_number}</Text>}
+                  {itemName && <Text className="text-[11px] text-[#006948] font-bold mt-0.5">{itemName}</Text>}
                   <View className="flex-row items-center mt-0.5">
                     <Text className="text-[11px] text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded mr-2">{formatDateToDDMMYYYY(purchase.date)}</Text>
                     <Text className="text-xs text-gray-500">{purchase.actual_birds} Birds ({purchase.net_weight}kg)</Text>

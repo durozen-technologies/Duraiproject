@@ -8,10 +8,11 @@ import client from '../api/client';
 
 export default function NewPartyScreen({ navigation }: any) {
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<'SUPPLIER' | 'PURCHASER'>('SUPPLIER');
+  const [tab, setTab] = useState<'SUPPLIER' | 'PURCHASER' | 'BOTH'>('SUPPLIER');
 
   const [form, setForm] = useState({
     name: '',
+    nickname: '',
     mobile: '',
     address: '',
     opening_balance: ''
@@ -27,7 +28,7 @@ export default function NewPartyScreen({ navigation }: any) {
       setErrors({});
       navigation.navigate('MainTabs', { 
         screen: 'Parties',
-        params: { successMessage: `${tab === 'SUPPLIER' ? 'Supplier' : 'Purchaser'} added successfully` }
+        params: { successMessage: `${tab === 'SUPPLIER' ? 'Supplier' : tab === 'PURCHASER' ? 'Purchaser' : 'Party'} added successfully` }
       });
     },
     onError: (error: any) => {
@@ -63,6 +64,7 @@ export default function NewPartyScreen({ navigation }: any) {
     setErrors({});
     mutation.mutate({
       name: form.name,
+      nickname: form.nickname,
       mobile: form.mobile,
       address: form.address,
       type: tab,
@@ -101,6 +103,12 @@ export default function NewPartyScreen({ navigation }: any) {
           >
             <Text className={`text-sm font-semibold ${tab === 'PURCHASER' ? 'text-white' : 'text-gray-500'}`}>Purchaser</Text>
           </TouchableOpacity>
+          <TouchableOpacity 
+            className={`flex-1 py-3 items-center ${tab === 'BOTH' ? 'bg-[#006948]' : 'bg-white'}`}
+            onPress={() => setTab('BOTH')}
+          >
+            <Text className={`text-sm font-semibold ${tab === 'BOTH' ? 'text-white' : 'text-gray-500'}`}>Both</Text>
+          </TouchableOpacity>
         </View>
 
         <View className="mb-5">
@@ -129,6 +137,16 @@ export default function NewPartyScreen({ navigation }: any) {
               ) : null}
             </View>
             
+            <View>
+              <Text className="text-xs font-medium text-gray-700 mb-1">Nickname</Text>
+              <TextInput 
+                placeholder="Alias (Optional)"
+                value={form.nickname}
+                onChangeText={(v) => setForm({...form, nickname: v})}
+                className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm"
+              />
+            </View>
+
             <View>
               <Text className="text-xs font-medium text-gray-700 mb-1">Mobile Number *</Text>
               <TextInput 
@@ -168,14 +186,19 @@ export default function NewPartyScreen({ navigation }: any) {
                 keyboardType="numeric"
                 value={form.opening_balance}
                 onChangeText={(v) => {
-                  const positiveValue = v.replace(/[^0-9.]/g, '');
-                  setForm({...form, opening_balance: positiveValue});
+                  let formatted = v.replace(/[^0-9.-]/g, '');
+                  if (formatted.lastIndexOf('-') > 0) {
+                      formatted = formatted.replace(/(?!^)-/g, '');
+                  }
+                  setForm({...form, opening_balance: formatted});
                 }}
                 className={`w-full px-3 py-2.5 bg-white border ${errors.opening_balance ? 'border-red-500' : 'border-gray-300'} rounded-md text-sm`}
               />
               {errors.opening_balance ? (
                 <Text className="text-red-500 text-xs mt-1">{errors.opening_balance}</Text>
-              ) : null}
+              ) : (
+                <Text className="text-gray-500 text-xs mt-1">Enter e.g. -100 if you need to receive, or 100 if you need to pay</Text>
+              )}
             </View>
           </View>
         </View>

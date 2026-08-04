@@ -7,7 +7,7 @@ import client from '../api/client';
 import PartyDetailsModal from '../components/PartyDetailsModal';
 
 export default function PartiesScreen({ navigation, route }: any) {
-  const [tab, setTab] = useState<'SUPPLIER' | 'PURCHASER'>('SUPPLIER');
+  const [filter, setFilter] = useState<'ALL' | 'SUPPLIER' | 'PURCHASER'>('ALL');
   const [selectedParty, setSelectedParty] = useState<any>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -30,9 +30,10 @@ export default function PartiesScreen({ navigation, route }: any) {
   }, [successMsg]);
 
   const { data: parties, isLoading, isError, error, refetch, isRefetching } = useQuery({
-    queryKey: ['parties', tab],
+    queryKey: ['parties', filter],
     queryFn: async () => {
-      const response = await client.get(`/parties/?party_type=${tab}`);
+      const url = filter === 'ALL' ? '/parties/' : `/parties/?party_type=${filter}`;
+      const response = await client.get(url);
       return response.data;
     }
   });
@@ -81,19 +82,25 @@ export default function PartiesScreen({ navigation, route }: any) {
         </View>
       </View>
 
-      {/* Tabs */}
-      <View className="flex-row border-b border-gray-200 bg-white">
+      {/* Filters */}
+      <View className="flex-row px-4 py-3 bg-white border-b border-gray-200 space-x-2">
         <TouchableOpacity 
-          className={`flex-1 py-3 items-center ${tab === 'SUPPLIER' ? 'border-b-2 border-[#006948]' : ''}`}
-          onPress={() => setTab('SUPPLIER')}
+          className={`px-4 py-1.5 rounded-full border ${filter === 'ALL' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
+          onPress={() => setFilter('ALL')}
         >
-          <Text className={`text-sm font-semibold ${tab === 'SUPPLIER' ? 'text-[#006948]' : 'text-gray-500'}`}>Suppliers</Text>
+          <Text className={`text-xs font-semibold ${filter === 'ALL' ? 'text-white' : 'text-gray-600'}`}>All</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          className={`flex-1 py-3 items-center ${tab === 'PURCHASER' ? 'border-b-2 border-[#006948]' : ''}`}
-          onPress={() => setTab('PURCHASER')}
+          className={`px-4 py-1.5 rounded-full border ${filter === 'SUPPLIER' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
+          onPress={() => setFilter('SUPPLIER')}
         >
-          <Text className={`text-sm font-semibold ${tab === 'PURCHASER' ? 'text-[#006948]' : 'text-gray-500'}`}>Purchasers</Text>
+          <Text className={`text-xs font-semibold ${filter === 'SUPPLIER' ? 'text-white' : 'text-gray-600'}`}>Suppliers</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          className={`px-4 py-1.5 rounded-full border ${filter === 'PURCHASER' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
+          onPress={() => setFilter('PURCHASER')}
+        >
+          <Text className={`text-xs font-semibold ${filter === 'PURCHASER' ? 'text-white' : 'text-gray-600'}`}>Purchasers</Text>
         </TouchableOpacity>
       </View>
 
@@ -108,7 +115,7 @@ export default function PartiesScreen({ navigation, route }: any) {
         ) : isError ? (
           <Text className="text-center text-red-500 mt-10">Error loading parties: {error?.message}</Text>
         ) : parties?.length === 0 ? (
-          <Text className="text-center text-gray-500 mt-10">No {tab}s found.</Text>
+          <Text className="text-center text-gray-500 mt-10">No parties found.</Text>
         ) : (
           parties
             ?.sort((a: any, b: any) => {
@@ -137,12 +144,13 @@ export default function PartiesScreen({ navigation, route }: any) {
                       </View>
                     )}
                   </View>
+                  {party.nickname ? <Text className="text-xs text-gray-500 italic mt-0.5">{party.nickname}</Text> : null}
                   <Text className="text-xs text-gray-500 mt-1">{party.mobile || 'No phone'}</Text>
                   {party.address ? <Text className="text-xs text-gray-500 mt-0.5">{party.address}</Text> : null}
                 </View>
               </View>
               <View className="items-end ml-2">
-                {party.unpaid_opening_balance > 0 && (
+                {party.unpaid_opening_balance !== 0 && (
                   <Text className="text-xs text-gray-400 mb-1">Opening: ₹{party.unpaid_opening_balance?.toLocaleString()}</Text>
                 )}
                 {party.total_pending_invoice_amount > 0 && (

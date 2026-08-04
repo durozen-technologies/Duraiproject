@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, RefreshControl, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TrendingUp, ShoppingCart, Receipt, BarChart2, Users, Truck, ChevronRight, Wallet, Edit2, FileText, X, History, FileStack, RefreshCcw, Calendar, LogOut } from 'lucide-react-native';
+import { TrendingUp, ShoppingCart, Receipt, BarChart2, Users, Truck, ChevronRight, Wallet, Edit2, FileText, X, History, FileStack, RefreshCcw, Calendar, LogOut, Box, FilePlus } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -299,10 +299,20 @@ export default function DashboardScreen() {
         {/* Quick Actions */}
         <View className="mb-6">
           <Text className="text-lg font-bold text-gray-900 mb-3">Quick Actions</Text>
-          <View className="flex-row gap-3">
+          <View className="flex-row flex-wrap gap-3">
+            <TouchableOpacity
+              onPress={() => navigation.navigate('BillEntry' as never)}
+              className="w-[47%] bg-white p-3 rounded-xl border border-gray-200 flex-col items-center shadow-sm justify-center"
+            >
+              <View className="w-12 h-12 rounded-full bg-[#ecfdf5] items-center justify-center mb-2">
+                <FilePlus color="#006948" size={24} />
+              </View>
+              <Text className="text-sm font-bold text-gray-900 text-center">Bill Entry</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               onPress={() => navigation.navigate('CollectionPayment' as never)}
-              className="flex-1 bg-white p-3 rounded-xl border border-gray-200 flex-col items-center shadow-sm justify-center"
+              className="w-[47%] bg-white p-3 rounded-xl border border-gray-200 flex-col items-center shadow-sm justify-center"
             >
               <View className="w-12 h-12 rounded-full bg-blue-50 items-center justify-center mb-2">
                 <Wallet color="#1d4ed8" size={24} />
@@ -312,12 +322,22 @@ export default function DashboardScreen() {
 
             <TouchableOpacity
               onPress={() => navigation.navigate('Reports' as never)}
-              className="flex-1 bg-white p-3 rounded-xl border border-gray-200 flex-col items-center shadow-sm justify-center"
+              className="w-[47%] bg-white p-3 rounded-xl border border-gray-200 flex-col items-center shadow-sm justify-center"
             >
               <View className="w-12 h-12 rounded-full bg-purple-50 items-center justify-center mb-2">
                 <FileStack color="#7e22ce" size={24} />
               </View>
               <Text className="text-sm font-bold text-gray-900 text-center">Reports</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Items' as never)}
+              className="w-[47%] bg-white p-3 rounded-xl border border-gray-200 flex-col items-center shadow-sm justify-center"
+            >
+              <View className="w-12 h-12 rounded-full bg-[#ecfdf5] items-center justify-center mb-2">
+                <Box color="#059669" size={24} />
+              </View>
+              <Text className="text-sm font-bold text-gray-900 text-center">Items</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -3,10 +3,13 @@ import { View, Text, TextInput, TouchableOpacity, Alert, Platform } from 'react-
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Save, Truck, Scale, Banknote, User, Pencil, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, Save, Truck, Scale, Banknote, User, Pencil, Trash2, Edit2 } from 'lucide-react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Picker } from '@react-native-picker/picker';
+import PartySearchDropdown from '../components/PartySearchDropdown';
+import DriverSearchDropdown from '../components/DriverSearchDropdown';
+import ItemSearchDropdown from '../components/ItemSearchDropdown';
 import client from '../api/client';
+import { fetchDrivers } from '../api/drivers';
 import { formatDateToDDMMYYYY } from '../utils/formatDate';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -18,8 +21,11 @@ export default function NewSaleScreen({ navigation, route }: any) {
   const [form, setForm] = useState({
     date: editData?.date || new Date().toISOString().split('T')[0],
     customer_id: editData?.party_id || '',
+    item_id: editData?.item_id || '',
+    driver_id: editData?.driver_id || '',
     driver_name: editData?.driver_name || '',
     vehicle_number: editData?.vehicle_number || '',
+    weighbridge_weight: editData?.weighbridge_weight?.toString() || '',
     net_weight: editData?.weight?.toString() || '',
     weight_rate: editData?.weight_rate?.toString() || '',
     weight_amount: editData?.weight_amount?.toString() || '',
@@ -31,6 +37,8 @@ export default function NewSaleScreen({ navigation, route }: any) {
     total_amount: editData?.total_invoice_amount?.toString() || '',
     cash_payment: editData?.cash_payment?.toString() || '',
     upi_payment: editData?.upi_payment?.toString() || '',
+    bank_payment: editData?.bank_payment?.toString() || '',
+    empty_bird_weight_g: '40',
     remarks: editData?.remarks || ''
   });
 
@@ -42,8 +50,41 @@ export default function NewSaleScreen({ navigation, route }: any) {
     }
   });
 
+  const { data: drivers } = useQuery({
+    queryKey: ['drivers'],
+    queryFn: fetchDrivers
+  });
+
+  const { data: items } = useQuery({
+    queryKey: ['items'],
+    queryFn: async () => {
+      const res = await client.get('/items/');
+      return res.data;
+    }
+  });
+
+  React.useEffect(() => {
+    const loadGrams = async () => {
+      try {
+        const res = await client.get('/settings/empty_bird_weight_g');
+        if (res.data && res.data.value !== null) {
+          setForm(f => ({ ...f, empty_bird_weight_g: res.data.value }));
+        }
+      } catch (e) {
+        console.error("Failed to load empty bird weight", e);
+      }
+    };
+    loadGrams();
+  }, []);
+
+  const updateEmptyBirdWeight = (v: string) => {
+    setForm(f => ({ ...f, empty_bird_weight_g: v }));
+  };
+
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isEditingBirds, setIsEditingBirds] = useState(false);
+  const [isEditingNetWeight, setIsEditingNetWeight] = useState(false);
+  const [isEditingGrams, setIsEditingGrams] = useState(false);
   const [errors, setErrors] = useState<any>({});
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -88,6 +129,18 @@ export default function NewSaleScreen({ navigation, route }: any) {
   }, [form.boxes, form.birds_per_box, isEditingBirds]);
 
   React.useEffect(() => {
+    if (!isEditingNetWeight) {
+      const wBridge = parseFloat(form.weighbridge_weight) || 0;
+      const birds = parseInt(form.actual_birds) || 0;
+      if (wBridge > 0 || birds > 0) {
+        const emptyWeightKg = (parseFloat(form.empty_bird_weight_g) || 40) / 1000;
+        const net = wBridge - (birds * emptyWeightKg); 
+        setForm(f => ({ ...f, net_weight: Math.max(0, net).toFixed(2) }));
+      }
+    }
+  }, [form.weighbridge_weight, form.actual_birds, form.empty_bird_weight_g, isEditingNetWeight]);
+
+  React.useEffect(() => {
     const netWeight = parseFloat(form.net_weight) || 0;
     const weightRate = parseFloat(form.weight_rate) || 0;
     const weightAmount = netWeight * weightRate;
@@ -125,7 +178,10 @@ export default function NewSaleScreen({ navigation, route }: any) {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       setErrorMsg('');
       setSuccessMsg(`Sale ${editData ? 'updated' : 'saved'} successfully`);
-      setTimeout(() => navigation.goBack(), 1500);
+      setTimeout(() => {
+        if (navigation.canGoBack()) navigation.goBack();
+        else navigation.navigate('MainTabs');
+      }, 1500);
     },
     onError: (error: any) => {
       let msg = `Failed to ${editData ? 'update' : 'save'} sale`;
@@ -149,12 +205,12 @@ export default function NewSaleScreen({ navigation, route }: any) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
-      queryClient.invalidateQueries({ queryKey: ['parties'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['sales'] });
-      setShowDeleteConfirm(false);
-      setErrorMsg('');
-      setSuccessMsg("Sale deleted successfully");
-      setTimeout(() => navigation.goBack(), 1500);
+      setTimeout(() => {
+        if (navigation.canGoBack()) navigation.goBack();
+        else navigation.navigate('MainTabs');
+      }, 1500);
     },
     onError: (error: any) => {
       setShowDeleteConfirm(false);
@@ -170,7 +226,7 @@ export default function NewSaleScreen({ navigation, route }: any) {
   const handleSave = () => {
     const newErrors: any = {};
     if (!form.customer_id) newErrors.customer_id = "Supplier is required";
-    if (!form.driver_name) newErrors.driver_name = "Driver Name is required";
+    if (!form.driver_id && !form.driver_name) newErrors.driver_id = "Driver is required";
     const vehicleRegex = /^[A-Za-z]{2}-\d{2}-[A-Za-z]{1,2}-\d{4}$/;
     if (!form.vehicle_number) {
       newErrors.vehicle_number = "Vehicle Number is required";
@@ -192,6 +248,10 @@ export default function NewSaleScreen({ navigation, route }: any) {
       ...form,
       date: form.date || new Date().toISOString().split('T')[0],
       party_id: form.customer_id,
+      item_id: form.item_id || null,
+      driver_id: form.driver_id || null,
+      driver_name: form.driver_name,
+      weighbridge_weight: parseFloat(form.weighbridge_weight) || 0,
       weight: parseFloat(form.net_weight) || 0,
       weight_rate: parseFloat(form.weight_rate) || 0,
       weight_amount: parseFloat(form.weight_amount) || 0,
@@ -202,16 +262,21 @@ export default function NewSaleScreen({ navigation, route }: any) {
       box_amount: parseFloat(form.box_amount) || 0,
       total_invoice_amount: parseFloat(form.total_amount) || 0,
       cash_payment: parseFloat(form.cash_payment) || 0,
-      upi_payment: parseFloat(form.upi_payment) || 0
+      upi_payment: parseFloat(form.upi_payment) || 0,
+      bank_payment: parseFloat(form.bank_payment) || 0,
+      remarks: form.remarks
     });
   };
+
+  const selectedDriver = drivers?.find((d: any) => d.id === form.driver_id);
+  const driverMobile = selectedDriver?.mobile || '';
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <View className="px-4 py-3 bg-white border-b border-gray-100 flex-row items-center justify-between shadow-sm">
         <View className="flex-row items-center">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
-            <ArrowLeft size={24} color="#111827" />
+          <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MainTabs')} className="mr-4">
+            <ArrowLeft color="#111827" size={24} />
           </TouchableOpacity>
           <View>
             <Text className="text-lg font-bold text-gray-900">{editData ? (isEditing ? 'Edit Sale' : 'Sale Details') : 'New Sale'}</Text>
@@ -248,7 +313,7 @@ export default function NewSaleScreen({ navigation, route }: any) {
           </View>
           
           <View className="space-y-3">
-            <View className="flex-col md:flex-row md:justify-between">
+            <View className="flex-col md:flex-row md:justify-between" style={{ zIndex: 50, elevation: 50 }}>
               <View className="md:w-[48%] mb-3 md:mb-0">
                 <Text className="text-xs font-medium text-gray-700 mb-1">Date</Text>
                 {Platform.OS === 'web' ? (
@@ -285,79 +350,87 @@ export default function NewSaleScreen({ navigation, route }: any) {
               </View>
               <View className="md:w-[48%]">
                 <Text className="text-xs font-medium text-gray-700 mb-1">Supplier</Text>
-                <View className="w-full bg-white border border-gray-300 rounded-md justify-center min-h-[50px]">
-                  <Picker
-                    selectedValue={form.customer_id}
-                    onValueChange={(itemValue) => setForm({...form, customer_id: itemValue})}
-                    mode="dropdown"
-                    style={{ width: '100%' }}
-                  >
-                    <Picker.Item label="Select a Supplier..." value="" color="#9ca3af" />
-                    {parties?.filter((p: any) => p.type === 'SUPPLIER' && p.is_active !== false).map((party: any) => (
-                      <Picker.Item key={party.id} label={party.name} value={party.id} />
-                    ))}
-                  </Picker>
+                <View style={{ zIndex: 50 }}>
+                  <PartySearchDropdown
+                    parties={parties?.filter((p: any) => (p.type === 'SUPPLIER' || p.type === 'BOTH') && p.is_active !== false)}
+                    value={form.customer_id}
+                    onSelect={(id: string) => {
+                      setForm({...form, customer_id: id});
+                      setErrors({...errors, customer_id: null});
+                    }}
+                    placeholder="Search Supplier (min 2 chars)..."
+                    error={errors.customer_id}
+                  />
                 </View>
-                {errors.customer_id && <Text className="text-red-500 text-xs mt-1">{errors.customer_id}</Text>}
               </View>
             </View>
-            <View className="flex-col md:flex-row md:justify-between">
-              <View className="md:w-[48%] mb-3 md:mb-0">
-                <Text className="text-xs font-medium text-gray-700 mb-1">Driver Name</Text>
-                <TextInput 
-                  placeholder="John Doe"
-                  value={form.driver_name}
-                  onChangeText={(v) => { setForm({...form, driver_name: v}); setErrors({...errors, driver_name: null}); }}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm"
-                />
-                {errors.driver_name && <Text className="text-red-500 text-xs mt-1">{errors.driver_name}</Text>}
+
+            <View className="flex-col md:flex-row md:justify-between" style={{ zIndex: 45, elevation: 45 }}>
+              <View className="w-full mb-3 md:mb-0">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Item</Text>
+                <View style={{ zIndex: 45 }}>
+                  <ItemSearchDropdown
+                    items={items?.filter((i: any) => i.is_active !== false)}
+                    value={form.item_id}
+                    onSelect={(id: string) => {
+                      setForm({...form, item_id: id});
+                    }}
+                    placeholder="Select Item..."
+                  />
+                </View>
               </View>
-              <View className="md:w-[48%]">
-                <Text className="text-xs font-medium text-gray-700 mb-1">Vehicle Number</Text>
+            </View>
+            <View className="flex-row justify-between" style={{ zIndex: 40 }}>
+              <View className="w-[32%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Driver</Text>
+                <View style={{ zIndex: 40 }}>
+                  <DriverSearchDropdown
+                    drivers={drivers?.filter((d: any) => d.is_active || d.id === form.driver_id)}
+                    value={form.driver_id || form.driver_name}
+                    onSelect={(val: string) => {
+                      if (val && val.length === 36 && val.includes('-')) {
+                        setForm({...form, driver_id: val, driver_name: ''});
+                      } else {
+                        setForm({...form, driver_id: '', driver_name: val});
+                      }
+                      setErrors({...errors, driver_id: null});
+                    }}
+                    placeholder="Search..."
+                    error={errors.driver_id}
+                  />
+                </View>
+                {errors.driver_id && <Text className="text-red-500 text-[10px] mt-1">{errors.driver_id}</Text>}
+              </View>
+              <View className="w-[32%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Driver Mobile</Text>
                 <TextInput 
-                  placeholder="TN-38-AA-1111"
+                  value={driverMobile}
+                  editable={false}
+                  placeholder="N/A"
+                  className="w-full px-2 py-2.5 bg-gray-100 border border-gray-300 rounded-md text-xs text-gray-500"
+                />
+              </View>
+              <View className="w-[32%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Vehicle No</Text>
+                <TextInput 
+                  placeholder="TN-38-AA"
                   value={form.vehicle_number}
                   onChangeText={handleVehicleNumberChange}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm"
+                  className="w-full px-2 py-2.5 bg-white border border-gray-300 rounded-md text-xs"
                 />
-                {errors.vehicle_number && <Text className="text-red-500 text-xs mt-1">{errors.vehicle_number}</Text>}
+                {errors.vehicle_number && <Text className="text-red-500 text-[10px] mt-1">{errors.vehicle_number}</Text>}
               </View>
             </View>
           </View>
         </View>
 
-        {/* Sale Quantities */}
+        {/* Quantity Details */}
         <View className="mb-5">
           <View className="flex-row items-center mb-3">
             <Scale color="#006948" size={20} className="mr-2" />
-            <Text className="text-sm font-semibold text-[#006948]">Sale Quantities & Rates</Text>
+            <Text className="text-sm font-semibold text-[#006948]">Quantity Details</Text>
           </View>
           
-          <View className="flex-row justify-between mb-3">
-            <View className="w-[48%]">
-              <Text className="text-xs font-medium text-gray-700 mb-1">Net Weight (kg)</Text>
-                <TextInput 
-                  placeholder="0.00" 
-                  keyboardType="numeric" 
-                  value={form.net_weight}
-                  onChangeText={(v) => { setForm({...form, net_weight: v}); setErrors({...errors, net_weight: null}); }}
-                  className="w-full px-3 py-2.5 border border-gray-300 bg-white rounded-md text-sm font-bold" 
-                />
-                {errors.net_weight && <Text className="text-red-500 text-xs mt-1">{errors.net_weight}</Text>}
-              </View>
-              <View className="w-[48%]">
-                <Text className="text-xs font-medium text-gray-700 mb-1">Rate (₹/kg)</Text>
-                <TextInput 
-                  placeholder="0.00" 
-                  keyboardType="numeric" 
-                  value={form.weight_rate}
-                  onChangeText={(v) => { setForm({...form, weight_rate: v}); setErrors({...errors, weight_rate: null}); }}
-                  className="w-full px-3 py-2.5 border border-gray-300 bg-white rounded-md text-sm font-bold" 
-                />
-                {errors.weight_rate && <Text className="text-red-500 text-xs mt-1">{errors.weight_rate}</Text>}
-              </View>
-          </View>
-
           <View className="flex-row justify-between mb-3">
             <View className="w-[48%]">
               <Text className="text-xs font-medium text-gray-700 mb-1">Total Boxes</Text>
@@ -420,6 +493,84 @@ export default function NewSaleScreen({ navigation, route }: any) {
           </View>
         </View>
 
+        {/* Weight & Rates */}
+        <View className="mb-5">
+          <View className="flex-row items-center mb-3">
+            <Scale color="#006948" size={20} className="mr-2" />
+            <Text className="text-sm font-semibold text-[#006948]">Weight & Rates</Text>
+          </View>
+          
+          <View className="flex-row justify-between mb-3">
+            <View className="w-[48%]">
+              <Text className="text-xs font-medium text-gray-700 mb-1">Rate (₹/kg)</Text>
+              <TextInput 
+                placeholder="0.00" 
+                keyboardType="numeric" 
+                value={form.weight_rate}
+                onChangeText={(v) => { setForm({...form, weight_rate: v}); setErrors({...errors, weight_rate: null}); }}
+                className="w-full px-3 py-2.5 border border-gray-300 bg-white rounded-md text-sm font-bold" 
+              />
+              {errors.weight_rate && <Text className="text-red-500 text-xs mt-1">{errors.weight_rate}</Text>}
+            </View>
+            <View className="w-[48%]">
+              <Text className="text-xs font-medium text-gray-700 mb-1">Weighbridge Weight (kg)</Text>
+              <TextInput 
+                placeholder="0.0"
+                keyboardType="numeric"
+                value={form.weighbridge_weight}
+                onChangeText={(v) => { setForm({...form, weighbridge_weight: v}); setErrors({...errors, weighbridge_weight: null}); }}
+                className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm font-bold"
+              />
+              {errors.weighbridge_weight && <Text className="text-red-500 text-xs mt-1">{errors.weighbridge_weight}</Text>}
+            </View>
+          </View>
+
+          <View className="mb-3">
+            <View className="flex-row justify-between items-center mb-1">
+              <Text className="text-xs font-medium text-gray-700">Net Weight (kg)</Text>
+              {!isEditingNetWeight && (
+                <TouchableOpacity onPress={() => setIsEditingNetWeight(true)} className="flex-row items-center">
+                  <Pencil color="#006948" size={12} className="mr-1" />
+                  <Text className="text-xs font-medium text-[#006948]">Edit</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <TextInput 
+              placeholder="0.00" 
+              keyboardType="numeric" 
+              value={form.net_weight}
+              onChangeText={(v) => setForm({...form, net_weight: v})}
+              editable={isEditingNetWeight}
+              className={`w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm font-bold ${!isEditingNetWeight ? 'bg-gray-100 text-gray-500' : 'bg-white text-gray-900'}`}
+            />
+            {!isEditingNetWeight ? (
+              <View className="flex-row items-center mt-1">
+                <Text className="text-[10px] text-gray-500">Auto-calculated: Weighbridge - (Total Birds × </Text>
+                {isEditingGrams ? (
+                  <TextInput
+                    value={form.empty_bird_weight_g}
+                    onChangeText={updateEmptyBirdWeight}
+                    onBlur={() => setIsEditingGrams(false)}
+                    keyboardType="numeric"
+                    autoFocus
+                    className="p-0 text-[10px] font-bold text-gray-700 border-b border-[#006948] w-6 text-center"
+                  />
+                ) : (
+                  <TouchableOpacity onPress={() => setIsEditingGrams(true)} className="flex-row items-center">
+                    <Text className="text-[10px] font-bold text-[#006948] mr-1">{form.empty_bird_weight_g}g</Text>
+                    <Edit2 color="#006948" size={10} />
+                  </TouchableOpacity>
+                )}
+                <Text className="text-[10px] text-gray-500">)</Text>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={() => setIsEditingNetWeight(false)} className="mt-2 self-end">
+                <Text className="text-xs font-medium text-gray-500">Cancel Edit (Auto Calculate)</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
         {/* Total Calculation */}
         <View className="mb-5">
           <Text className="text-xs font-medium text-gray-700 mb-1">Total Sale Amount</Text>
@@ -452,8 +603,8 @@ export default function NewSaleScreen({ navigation, route }: any) {
           
           <View className="space-y-3">
             <View className="flex-row justify-between">
-              <View className="w-[48%]">
-                <Text className="text-xs font-medium text-gray-700 mb-1">Cash Payment (₹)</Text>
+              <View className="w-[31%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Cash Payment</Text>
                 <TextInput 
                   placeholder="0.00" 
                   keyboardType="numeric" 
@@ -462,8 +613,8 @@ export default function NewSaleScreen({ navigation, route }: any) {
                   className="w-full px-3 py-2.5 border border-gray-300 bg-white rounded-md text-sm font-bold" 
                 />
               </View>
-              <View className="w-[48%]">
-                <Text className="text-xs font-medium text-gray-700 mb-1">UPI Payment (₹)</Text>
+              <View className="w-[31%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">UPI Payment</Text>
                 <TextInput 
                   placeholder="0.00" 
                   keyboardType="numeric" 
@@ -472,16 +623,26 @@ export default function NewSaleScreen({ navigation, route }: any) {
                   className="w-full px-3 py-2.5 border border-gray-300 bg-white rounded-md text-sm font-bold" 
                 />
               </View>
+              <View className="w-[31%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Bank Account</Text>
+                <TextInput 
+                  placeholder="0.00" 
+                  keyboardType="numeric" 
+                  value={form.bank_payment}
+                  onChangeText={(v) => setForm({...form, bank_payment: v})}
+                  className="w-full px-3 py-2.5 border border-gray-300 bg-white rounded-md text-sm font-bold" 
+                />
+              </View>
             </View>
             <View className="flex-row justify-between items-center bg-gray-100 p-3 rounded-md mt-2">
               <View>
                 <Text className="text-xs text-gray-500 font-medium">Total Received</Text>
-                <Text className="text-sm font-bold text-[#006948]">₹ {((parseFloat(form.cash_payment) || 0) + (parseFloat(form.upi_payment) || 0)).toFixed(2)}</Text>
+                <Text className="text-sm font-bold text-[#006948]">₹ {((parseFloat(form.cash_payment) || 0) + (parseFloat(form.upi_payment) || 0) + (parseFloat(form.bank_payment) || 0)).toFixed(2)}</Text>
               </View>
               <View className="items-end">
                 <Text className="text-xs text-gray-500 font-medium">Balance Amount</Text>
                 <Text className="text-sm font-bold text-red-500">
-                  ₹ {((parseFloat(form.total_amount) || 0) - ((parseFloat(form.cash_payment) || 0) + (parseFloat(form.upi_payment) || 0))).toFixed(2)}
+                  ₹ {((parseFloat(form.total_amount) || 0) - ((parseFloat(form.cash_payment) || 0) + (parseFloat(form.upi_payment) || 0) + (parseFloat(form.bank_payment) || 0))).toFixed(2)}
                 </Text>
               </View>
             </View>
@@ -505,7 +666,8 @@ export default function NewSaleScreen({ navigation, route }: any) {
           <TouchableOpacity 
             onPress={() => {
               if (editData) setIsEditing(false);
-              else navigation.goBack();
+              if (navigation.canGoBack()) navigation.goBack();
+              else navigation.navigate('MainTabs');
             }}
             className={`${editData ? 'w-[25%]' : 'w-[30%]'} py-3 bg-white border border-gray-300 rounded-md items-center justify-center mr-2`}
           >

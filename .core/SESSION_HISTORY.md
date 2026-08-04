@@ -597,3 +597,102 @@ px tsc --noEmit and found compilation errors. Removed invalid onClick properties
 ### [2026-07-28 16:53:46] Update Login Screen
 - Added enableOnAndroid and extraScrollHeight to KeyboardAwareScrollView in LoginScreen.
 - Added show/hide password toggle to password input field.
+
+### [2026-08-01 10:18:00] Add Nickname to Party
+**Request**: in that add new party , below Name/Company Name, add a new field as Nickname.
+**Action**: Added nickname field to Party model in backend, updated API schema, created and applied Alembic migration. Updated frontend NewPartyScreen to include Nickname field.
+
+
+### [2026-08-01 11:30:00] Display Nickname in Parties List
+**Request**: in that parties page on supplier or Purchase below name, keep nickname to be visible for each parties.
+**Action**: Updated PartiesScreen.tsx to render the nickname below the party name in the list. Also updated PartyDetailsModal.tsx to display and edit the nickname.
+
+
+### [2026-08-03 09:54:00] Add BOTH Party Type and Signed Opening Balance
+- **User Request:** Add a BOTH option to Party Type and allow typing negative opening balance if they owe us.
+- **Action Taken:**
+  - Added BOTH to PartyType enum in backend/app/models/enums.py.
+  - Created and ran Alembic migration to add BOTH to Postgres partytype enum.
+  - Updated backend/app/api/routes/parties.py to correctly query BOTH parties.
+  - Updated frontend_mobile/src/screens/NewPartyScreen.tsx for BOTH tab and signed balance input.
+  - Updated frontend_mobile/src/components/PartyDetailsModal.tsx for signed balance input and BOTH display.
+
+### [2026-08-03 10:14:00] Parties Screen Filter Update
+- **User Request:** Show all parties by default in menu -> parties, keep filter as supplier/purchaser, and remove the old supplier/purchaser tabs.
+- **Action Taken:** Updated frontend_mobile/src/screens/PartiesScreen.tsx to use a pill-based filter component instead of tabs and added an 'ALL' default state to fetch and display all parties.
+
+### [2026-08-03 10:20:00] Fix negative opening balance not showing
+- **User Request:** parties opening balance is not showing.
+- **Action Taken:** Fixed logic in frontend_mobile/src/screens/PartiesScreen.tsx to render opening balances that are negative (changed > 0 to !== 0) and updated 'Balance Due' to show the true 'Total Balance Due'.
+
+### [2026-08-03 10:29:00] Fix BOTH party type not showing in dropdowns
+- **User Request:** new Purchase and new Sale not showing parties created as BOTH.
+- **Action Taken:** Updated frontend local array filters in NewPurchaseScreen.tsx, NewSaleScreen.tsx, PurchasesScreen.tsx, SalesScreen.tsx, and ReportsScreen.tsx to include 'BOTH' when filtering by supplier or purchaser.
+
+### [2026-08-03 10:42:00] Add Searchable Party Dropdown
+- **User Request:** in that select purchaser, make typing as minimum three character listout the matching parties, as to select it.
+- **Action Taken:** Created a custom PartySearchDropdown component in frontend_mobile that requires 3 characters to search. Replaced the standard Picker with this component in NewPurchaseScreen.tsx and NewSaleScreen.tsx.
+
+### [2026-08-03 10:47:00] Fix dropdown z-index in NewPurchase and NewSale
+- **User Request:** it that dropdown should be above the field, not a below of vehicle number.
+- **Action Taken:** Added zIndex: 50 and elevation: 50 to the parent View row containing the dropdown in NewPurchaseScreen.tsx and NewSaleScreen.tsx so the absolute positioned list overlaps the subsequent fields instead of being clipped behind them.
+
+### [2026-08-03 11:37:00] Fix Android Touch Clipping in PartySearchDropdown
+- **User Request:** purchase ->new purchase. in that purchaser if i select it is not selecting
+- **Action Taken:** Removed absolute positioning from the PartySearchDropdown list to make it inline. This forces the layout to push surrounding content down when expanded, which guarantees that touch events are properly registered on Android devices without clipping against parent view bounds.
+
+### [2026-08-03 11:22:00] Revert Total Balance Due on Parties Screen
+- **User Request:** the opening balance should not be applied to the new purchaser or new sale amount.
+- **Action Taken:** Reverted the 'Total Balance Due' logic on the PartiesScreen back to 'Balance Due', which explicitly subtracts the opening balance so the user only sees the running bill balances in that specific UI label.
+
+### [2026-08-03 11:29:00] Make Empty Bird Weight Local to Bill
+- **User Request:** Auto-calculated: Weighbridge - (Total Birds × 40g). it is default 40g, if need to change like 30g 20, 50g, it applies only particular bill alone.
+- **Action Taken:** Updated NewPurchaseScreen to prevent changes to the empty bird weight (e.g. 40g) from saving to global settings. It now only applies locally to calculate the net weight for the current bill.
+
+### [2026-08-03 11:39:00] Add Bank Account Payment
+- **User Request:** Payment (Cash, UPI, Bank) - for the new purchase and new sale, add the Bank Account field also.
+- **Action:** Added ank_payment column to Purchase, Sale and ank_amount to PaymentTransaction models. Created and applied Alembic migrations. Updated backend API logic to correctly sum ank_payment in totals. Added Bank Account input field to NewPurchaseScreen and NewSaleScreen.
+
+### [2026-08-03 11:44:44] Display Nickname in PartySearchDropdown
+- **User Request:** show the nickname after a selecting a purchaser or supplier
+- **Action:** Updated PartySearchDropdown.tsx to set searchText to `  () ` upon selection or initialization if a nickname is available.
+
+### [2026-08-03 12:16:31] Fix Bill Number Generation Logic
+- **User Request:** Change bill format to PUR-YYYY-000001 and SAL-YYYY-000001, tied to financial year (Apr 1 - Mar 31) based on the selected purchase/sale date.
+- **Action:** Updated purchases.py and sales.py in the backend. Calculated y_year from the incoming date payload to prefix bills appropriately.
+- **Approval:** User approved the implementation plan.
+
+### [2026-08-04 09:47:15] Frontend implementation for Drivers
+- Added `DriversScreen`, `NewDriverScreen`, and `DriverDetailsScreen`.
+- Updated `NewPurchaseScreen` and `NewSaleScreen` to use a Picker for driver selection.
+- Registered Driver screens in `RootNavigator.tsx`.
+
+### [2026-08-04 10:00:37] Searchable Driver Dropdown
+- Created `DriverSearchDropdown` component.
+- Replaced `<Picker>` in `NewPurchaseScreen` and `NewSaleScreen` with the new component.
+- Added a read-only field to display the selected driver's mobile number.
+
+### [2026-08-04 10:15:59] Layout Tweak: Driver Mobile
+- Moved "Driver Mobile" field to be directly adjacent (right) to the "Driver Name" dropdown in `NewPurchaseScreen.tsx` and `NewSaleScreen.tsx`.
+- Moved "Vehicle Number" to the next row.
+
+### [2026-08-04 10:17:26] Layout Tweak: Driver, Mobile, and Vehicle Number on the same line
+- Updated `NewPurchaseScreen.tsx` and `NewSaleScreen.tsx` to display Driver, Driver Mobile, and Vehicle Number in a single row with 3 columns.
+
+### [2026-08-04 16:20:00] One-Page Bill Entry Implementation
+- Rewrote `saleentry.html` as live formula reference: Bill Entry title, sale Driver/Vehicle, Net Kg auto-calc with empty bird g, Remaining Weight = S purchase net - S sale net, Profit = sale - purchase - expenses, Outstanding = sale balance only.
+- Added `frontend_mobile/src/utils/billEntryCalc.ts` with shared calc helpers.
+- Built `frontend_mobile/src/screens/BillEntryScreen.tsx` (responsive mobile + web) with multi-row purchase/sale/expense entry and save via existing APIs.
+- Registered `BillEntry` in RootNavigator + linking; added Dashboard Quick Action.
+
+
+### [2026-08-04 16:38:51] UI Update: Bill Entry Table Layout
+
+**Request:** 
+@[BillEntryScreen()] in the purchase and sale, make as one horizontally table with proper table format,, make use the reference @[saleentry.html] /frontend-ui-engineering /impeccable layout /impeccable shape
+
+**Action Taken:**
+- Examined `saleentry.html` reference and impeccable UI engineering rules.
+- Refactored `BillEntryScreen.tsx` to replace vertical cards with a horizontally scrolling `<ScrollView>` table layout.
+- Styled header and data columns using `Th` and `Td` helpers for precise widths and aesthetics.
+- Addressed dropdown overflow by managing container styling and layout contexts.

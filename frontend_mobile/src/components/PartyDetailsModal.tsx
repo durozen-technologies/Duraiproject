@@ -14,6 +14,7 @@ export default function PartyDetailsModal({ isVisible, onClose, party }: PartyDe
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
+    nickname: '',
     mobile: '',
     address: '',
     is_active: true,
@@ -27,6 +28,7 @@ export default function PartyDetailsModal({ isVisible, onClose, party }: PartyDe
     if (party) {
       setFormData({
         name: party.name || '',
+        nickname: party.nickname || '',
         mobile: party.mobile || '',
         address: party.address || '',
         is_active: party.is_active ?? true,
@@ -156,6 +158,22 @@ export default function PartyDetailsModal({ isVisible, onClose, party }: PartyDe
             </View>
 
             <View className="space-y-1">
+              <Text className="text-sm font-semibold text-gray-700 ml-1">Nickname</Text>
+              {isEditing ? (
+                <TextInput
+                  value={formData.nickname}
+                  onChangeText={(text) => setFormData({ ...formData, nickname: text })}
+                  placeholder="Enter nickname (optional)"
+                  className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900"
+                />
+              ) : (
+                <View className="bg-gray-50 rounded-lg px-4 py-3 border border-gray-200">
+                  <Text className="text-base text-gray-900">{party.nickname || 'Not provided'}</Text>
+                </View>
+              )}
+            </View>
+
+            <View className="space-y-1">
               <Text className="text-sm font-semibold text-gray-700 ml-1">Mobile Number</Text>
               {isEditing ? (
                 <TextInput
@@ -197,16 +215,21 @@ export default function PartyDetailsModal({ isVisible, onClose, party }: PartyDe
                   <TextInput
                     value={formData.opening_balance}
                     onChangeText={(text) => {
-                      const positiveValue = text.replace(/[^0-9.]/g, '');
-                      setFormData({ ...formData, opening_balance: positiveValue });
+                      let formatted = text.replace(/[^0-9.-]/g, '');
+                      if (formatted.lastIndexOf('-') > 0) {
+                          formatted = formatted.replace(/(?!^)-/g, '');
+                      }
+                      setFormData({ ...formData, opening_balance: formatted });
                     }}
                     placeholder="Enter opening balance"
                     keyboardType="numeric"
                     editable={!(party && (parseFloat(party.current_balance) !== parseFloat(party.opening_balance) || parseFloat(party.unpaid_opening_balance) !== parseFloat(party.opening_balance)))}
                     className={`border border-gray-300 rounded-lg px-4 py-3 text-base ${(party && (parseFloat(party.current_balance) !== parseFloat(party.opening_balance) || parseFloat(party.unpaid_opening_balance) !== parseFloat(party.opening_balance))) ? 'bg-gray-200 text-gray-500' : 'bg-gray-50 text-gray-900'}`}
                   />
-                  {(party && (parseFloat(party.current_balance) !== parseFloat(party.opening_balance) || parseFloat(party.unpaid_opening_balance) !== parseFloat(party.opening_balance))) && (
+                  {(party && (parseFloat(party.current_balance) !== parseFloat(party.opening_balance) || parseFloat(party.unpaid_opening_balance) !== parseFloat(party.opening_balance))) ? (
                     <Text className="text-xs text-orange-600 mt-1 ml-1">Cannot edit opening balance after transactions have started</Text>
+                  ) : (
+                    <Text className="text-gray-500 text-xs mt-1 ml-1">Enter e.g. -100 if you need to receive, or 100 if you need to pay</Text>
                   )}
                 </View>
               ) : (

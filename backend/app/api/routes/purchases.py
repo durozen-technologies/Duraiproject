@@ -15,8 +15,10 @@ router = APIRouter()
 
 class PurchaseBase(BaseModel):
     party_id: UUID4
+    item_id: Optional[UUID4] = None
     vehicle_number: Optional[str] = None
     driver_name: Optional[str] = None
+    driver_id: Optional[UUID4] = None
     total_boxes: int = 0
     birds_per_box: int = 0
     actual_birds: int = 0
@@ -26,6 +28,7 @@ class PurchaseBase(BaseModel):
     purchase_amount: float = 0.0
     cash_payment: float = 0.0
     upi_payment: float = 0.0
+    bank_payment: float = 0.0
     balance_amount: float = 0.0
     remarks: Optional[str] = None
     is_locked: bool = False
@@ -49,12 +52,16 @@ async def create_purchase(purchase_in: PurchaseCreate, db: AsyncSession = Depend
     result = await db.execute(select(Party).where(Party.id == purchase_in.party_id))
     supplier = result.scalar_one_or_none()
     if not supplier:
-        raise HTTPException(status_code=404, detail="Supplier not found")
+        raise HTTPException(status_code=404, detail="Party not found")
         
-    # Generate unique bill_number for purchase
-    purchase_date = purchase_in.date or datetime.now().date()
-    current_year = purchase_date.year
-    prefix = f"PUR-{current_year}-"
+    purchase_date = purchase_in.date or datetime_date.today()
+    
+    if purchase_date.month >= 4:
+        fy_year = purchase_date.year
+    else:
+        fy_year = purchase_date.year - 1
+        
+    prefix = f"PUR-{fy_year}-"
     
     bill_query = await db.execute(
         select(Purchase.bill_number)
@@ -80,6 +87,7 @@ async def create_purchase(purchase_in: PurchaseCreate, db: AsyncSession = Depend
         bill_number=new_bill_number,
         vehicle_number=purchase_in.vehicle_number,
         driver_name=purchase_in.driver_name,
+        driver_id=purchase_in.driver_id,
         total_boxes=purchase_in.total_boxes,
         birds_per_box=purchase_in.birds_per_box,
         actual_birds=purchase_in.actual_birds,
@@ -89,14 +97,15 @@ async def create_purchase(purchase_in: PurchaseCreate, db: AsyncSession = Depend
         purchase_amount=purchase_in.purchase_amount,
         cash_payment=purchase_in.cash_payment,
         upi_payment=purchase_in.upi_payment,
-        balance_amount=purchase_in.purchase_amount - (purchase_in.cash_payment + purchase_in.upi_payment),
+        bank_payment=purchase_in.bank_payment,
+        balance_amount=purchase_in.purchase_amount - (purchase_in.cash_payment + purchase_in.upi_payment + purchase_in.bank_payment),
         remarks=purchase_in.remarks,
         is_locked=purchase_in.is_locked
     )
     db.add(db_purchase)
     await db.flush()
 
-    total_paid = purchase_in.cash_payment + purchase_in.upi_payment
+    total_paid = purchase_in.cash_payment + purchase_in.upi_payment + purchase_in.bank_payment
     if total_paid > 0:
         txn = PaymentTransaction(
             party_id=purchase_in.party_id,
@@ -104,6 +113,7 @@ async def create_purchase(purchase_in: PurchaseCreate, db: AsyncSession = Depend
             type=TransactionType.PAID,
             cash_amount=purchase_in.cash_payment,
             upi_amount=purchase_in.upi_payment,
+            bank_amount=purchase_in.bank_payment,
             total_amount=total_paid
         )
         db.add(txn)
@@ -116,8 +126,11 @@ async def create_purchase(purchase_in: PurchaseCreate, db: AsyncSession = Depend
     return db_purchase
 
 @router.get("/", response_model=List[PurchaseResponse])
-async def get_purchases(db: AsyncSession = Depends(deps.get_db)):
-    result = await db.execute(select(Purchase).order_by(Purchase.date.desc()))
+async def get_purchases(driver_id: Optional[UUID4] = None, db: AsyncSession = Depends(deps.get_db)):
+    query = select(Purchase).order_by(Purchase.date.desc())
+    if driver_id:
+        query = query.where(Purchase.driver_id == driver_id)
+    result = await db.execute(query)
     return result.scalars().all()
 
 @router.put("/{purchase_id}", response_model=PurchaseResponse)
@@ -134,7 +147,7 @@ async def update_purchase(purchase_id: UUID4, purchase_in: PurchaseUpdate, db: A
     old_supplier = result_party.scalar_one_or_none()
 
     # Revert financial impact
-    old_paid = db_purchase.cash_payment + db_purchase.upi_payment
+    old_paid = db_purchase.cash_payment + db_purchase.upi_payment + db_purchase.bank_payment
     old_supplier.current_balance = float(old_supplier.current_balance) - float(db_purchase.purchase_amount)
     old_supplier.current_balance = float(old_supplier.current_balance) + float(old_paid)
 
@@ -166,6 +179,7 @@ async def update_purchase(purchase_id: UUID4, purchase_in: PurchaseUpdate, db: A
     db_purchase.date = purchase_in.date or db_purchase.date
     db_purchase.vehicle_number = purchase_in.vehicle_number
     db_purchase.driver_name = purchase_in.driver_name
+    db_purchase.driver_id = purchase_in.driver_id
     db_purchase.total_boxes = purchase_in.total_boxes
     db_purchase.birds_per_box = purchase_in.birds_per_box
     db_purchase.actual_birds = purchase_in.actual_birds
@@ -175,12 +189,13 @@ async def update_purchase(purchase_id: UUID4, purchase_in: PurchaseUpdate, db: A
     db_purchase.purchase_amount = purchase_in.purchase_amount
     db_purchase.cash_payment = purchase_in.cash_payment
     db_purchase.upi_payment = purchase_in.upi_payment
-    db_purchase.balance_amount = purchase_in.purchase_amount - (purchase_in.cash_payment + purchase_in.upi_payment)
+    db_purchase.bank_payment = purchase_in.bank_payment
+    db_purchase.balance_amount = purchase_in.purchase_amount - (purchase_in.cash_payment + purchase_in.upi_payment + purchase_in.bank_payment)
     db_purchase.remarks = purchase_in.remarks
     db_purchase.is_locked = purchase_in.is_locked
 
     # Create new transaction if paid
-    new_paid = purchase_in.cash_payment + purchase_in.upi_payment
+    new_paid = purchase_in.cash_payment + purchase_in.upi_payment + purchase_in.bank_payment
     if new_paid > 0:
         new_txn = PaymentTransaction(
             party_id=purchase_in.party_id,
@@ -188,6 +203,7 @@ async def update_purchase(purchase_id: UUID4, purchase_in: PurchaseUpdate, db: A
             type=TransactionType.PAID,
             cash_amount=purchase_in.cash_payment,
             upi_amount=purchase_in.upi_payment,
+            bank_amount=purchase_in.bank_payment,
             total_amount=new_paid
         )
         db.add(new_txn)
@@ -213,7 +229,7 @@ async def delete_purchase(purchase_id: UUID4, db: AsyncSession = Depends(deps.ge
     result_party = await db.execute(select(Party).where(Party.id == db_purchase.party_id))
     supplier = result_party.scalar_one_or_none()
 
-    old_paid = db_purchase.cash_payment + db_purchase.upi_payment
+    old_paid = db_purchase.cash_payment + db_purchase.upi_payment + db_purchase.bank_payment
     if supplier:
         supplier.current_balance = float(supplier.current_balance) - float(db_purchase.purchase_amount)
         supplier.current_balance = float(supplier.current_balance) + float(old_paid)

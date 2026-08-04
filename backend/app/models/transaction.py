@@ -21,6 +21,7 @@ class PaymentTransaction(Base, BaseModelMixin):
     
     cash_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
     upi_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    bank_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
     total_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
 
     party = relationship("Party", back_populates="transactions")

@@ -698,3 +698,98 @@ taskkill /F /IM node.exe
 ### [2026-07-28 16:53:50] USER: in the login page, keep the keyboard avoid view like purchase page method, keep the visible icon on login password section
 
 AI: Updated LoginScreen.tsx to include enableOnAndroid and extraScrollHeight properties to the KeyboardAwareScrollView and added a show/hide password toggle (using lucide-react-native Eye/EyeOff icons) on the password TextInput.
+
+### [2026-08-01 10:18:00] User Request: Add nickname to party
+**Terminal commands run**:
+- uv run alembic revision --autogenerate -m "add nickname to party"
+- uv run alembic upgrade head
+**Technical Reasoning**: Added nickname to backend model, Pydantic schemas, and applied DB migration. Then updated NewPartyScreen in frontend.
+
+
+### [2026-08-01 11:30:00] User Request: Display nickname in parties list
+**Terminal commands run**:
+None
+**Technical Reasoning**: Modified frontend UI in PartiesScreen.tsx to show the party.nickname field below the name. Added nickname field in PartyDetailsModal.tsx for viewing and editing.
+
+
+### [2026-08-03 09:54:00]
+**User:** menu -> parties -> add new party: in that while creating a new party there are chosing Supplier or Purchaser...
+**Agent:** Created implementation plan.
+**User:** Clarified sign convention and requested plan rewrite.
+**Agent:** Rewrote plan.
+**User:** Approved.
+**Agent:** Implemented the BOTH party type and signed opening balances. Ran alembic migration.
+
+### [2026-08-03 10:14:00]
+**User:** in that menu -> parties: in that show all the parties, keep the filter as supplier or purchaser. remove the supplier or purchaser tab.
+**Agent:** Updated PartiesScreen.tsx to show all parties by default, replacing the old large tabs with smaller pill filters for 'All', 'Suppliers', and 'Purchasers'.
+
+### [2026-08-03 10:17:35]
+**User:** what is command to delete a data.
+**Agent:** Provided options to reset the database using reset_db.py or standard SQL commands.
+
+### [2026-08-03 10:20:00]
+**User:** in that parties opening balance is not showing.
+**Agent:** Fixed the logic in the UI to correctly display negative opening balances and calculate the overall total balance correctly.
+
+### [2026-08-03 10:29:00]
+**User:** in that new Purchase and new Sale, if i created as both parties, are not show on purchase and sale page
+**Agent:** Updated the local filtering logic across all screens (NewPurchase, NewSale, Purchases, Sales, Reports) to correctly include parties marked as 'BOTH' in the dropdowns.
+
+### [2026-08-03 10:42:00]
+**User:** in that select purchaser, make typing as minimum three character listout the matching parties, as to select it.
+**Agent:** Created a custom autocomplete searchable dropdown component and integrated it into the New Purchase and New Sale screens.
+
+### [2026-08-03 10:47:00]
+**User:** it that dropdown should be above the field, not a below of vehicle number.
+**Agent:** Fixed the rendering issue by applying zIndex and elevation styles to the dropdown's parent container, ensuring the list displays correctly on top of the following fields.
+
+### [2026-08-03 11:37:00]
+**User:** purchase ->new purchase. in that purchaser if i select it is not selecting
+**Agent:** Updated the custom dropdown component to render inline instead of floating over other elements. This fixes an Android-specific bug where touches on floating elements outside their parent boundaries are ignored.
+
+### [2026-08-03 11:22:00]
+**User:** the opening balance should not be applied to the new purchaser or new sale amount.
+**Agent:** Reverted the UI on the Parties Screen so that the 'Balance Due' label only reflects new purchases/sales and keeps the Opening Balance separated visually.
+
+### [2026-08-03 11:29:00]
+**User:** Auto-calculated: Weighbridge - (Total Birds × 40g). it is default 40g, if need to change like 30g 20, 50g, it applies only particular bill alone.
+**Agent:** Updated NewPurchaseScreen so changing the bird weight (40g to 30g, etc.) only affects the current bill and no longer updates the default setting for future bills.
+
+### [2026-08-03 11:39:00]
+**User:** for the new purchase and new sale, add the Bank Account field also.
+**Agent:** Added a bank_payment column to the database and updated both the Purchase and Sale screens to include a 'Bank Account' input field, which correctly updates the Total Paid and Balance Due calculations.
+
+### [2026-08-03 11:44:44]
+**User:** in that while searching purchaser after clicking it showing only name/company name, show the nickname after a selecting a purchaser or supplier
+**Agent:** Updated the searchable dropdown so that once you select a party, the input field will now display their name along with their nickname in parentheses.
+
+### [2026-08-03 12:16:31]
+**User:** (Approved the revised implementation plan)
+**Agent:** Updated the backend logic to generate bill numbers formatted as PUR-YYYY-000001 and SAL-YYYY-000001, strictly using the financial year of the selected transaction date.
+
+### [2026-08-04 09:47:15] Chat Log
+**User**: Implement frontend screens for the new Driver entity.
+**Agent**: Created driver API clients, UI screens, and updated existing purchase/sale screens to use a driver selection picker.
+
+### [2026-08-04 10:00:37] Chat Log
+**User**: in the purchase and sale as typing the two letter as driver as dropdown to select the driver and also show the mobile number. as separate field, like selecting purchaser concept
+**Agent**: Implemented `DriverSearchDropdown` to allow typing to search for drivers, and added a separate read-only text input to display the driver's mobile number on selection.
+
+### [2026-08-04 10:15:59] Chat Log
+**User**: keep the driver mobile right to driver name field.
+**Agent**: Updated the UI layout in both NewPurchaseScreen and NewSaleScreen to place Driver Mobile right next to the Driver field.
+
+### [2026-08-04 10:17:26] Chat Log
+**User**: Driver Search Driver (min 2 chars)... Driver Mobile N/A Vehicle Number keep these three are in same line
+**Agent**: Adjusted the layout in NewPurchaseScreen and NewSaleScreen so that Driver, Driver Mobile, and Vehicle Number are all on the same line.
+
+### [2026-08-04 16:20:00] Chat Log
+**User**: Implement One-Page Bill Entry plan (HTML reference + React Native mobile/web). Formulas: Remaining = purchase net - sale net; Profit = sale - purchase - expenses; Outstanding = sale only; Net Kg auto with override; add Driver/Vehicle on sales.
+**Agent**: Fixed saleentry.html; added billEntryCalc.ts; implemented BillEntryScreen with validation and POST to purchases/sales/expenses; wired navigation and Dashboard entry.
+
+
+### [2026-08-04 16:38:51]
+**User:** @[BillEntryScreen()] in the purchase and sale, make as one horizontally table with proper table format,, make use the reference @[saleentry.html] /frontend-ui-engineering /impeccable layout /impeccable shape
+
+**Antigravity:** Refactored the Purchase and Sale sections into horizontally scrollable tables in `BillEntryScreen.tsx`, utilizing proper `<ScrollView>`, `Th`, and `Td` components to mimic `saleentry.html` with impeccable styling.

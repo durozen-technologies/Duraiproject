@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bill Entry</title>
+<style>
+  :root{
+    --green-dark:#0b4d3a;
+    --green-mid:#0f5c45;
+    --green-light:#e8f3ee;
+    --green-border:#cfe3da;
+    --red:#c0392b;
+    --text:#1c2b26;
+    --muted:#5a6b64;
+    --bg:#f4f7f5;
+    --white:#ffffff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:"Segoe UI",Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    font-size:13px;
+  }
+  .app{
+    max-width:1550px;
+    margin:16px auto;
+    background:var(--white);
+    border-radius:8px;
+    overflow:hidden;
+    box-shadow:0 4px 20px rgba(0,0,0,0.08);
+    border:1px solid #d9e2dd;
+  }
+  .titlebar{
+    background:var(--green-dark);
+    color:#fff;
+    padding:12px 18px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-weight:600;
+    letter-spacing:0.5px;
+    font-size:15px;
+  }
+  .meta-row{
+    display:flex;
+    align-items:center;
+    gap:26px;
+    padding:14px 20px;
+    background:var(--white);
+    flex-wrap:wrap;
+    border-bottom:1px solid #eef1f0;
+  }
+  .field{display:flex;align-items:center;gap:8px;}
+  .field label{font-weight:600;color:#2a3a34;white-space:nowrap;}
+  .field input{
+    padding:7px 10px;
+    border:1px solid #cfd8d4;
+    border-radius:5px;
+    font-size:13px;
+    color:var(--text);
+    background:#fff;
+  }
+  .section-header{
+    background:var(--green-dark);
+    color:#fff;
+    padding:9px 18px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    font-weight:700;
+    letter-spacing:.5px;
+    font-size:13.5px;
+  }
+  .section-header .right-info{font-weight:600;font-size:13px;}
+  .btn{
+    border:none;
+    padding:7px 14px;
+    border-radius:5px;
+    font-weight:600;
+    font-size:12.5px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .btn-add{background:#1a7a52;color:#fff;}
+  .btn-add:hover{background:#186b48;}
+  .btn-cancel{background:#c0392b;color:#fff;}
+  .btn-save{background:var(--green-dark);color:#fff;}
+  .btn-save-print{background:#0f6b48;color:#fff;}
+  table{width:100%;border-collapse:collapse;background:#fff;}
+  thead th{
+    background:var(--green-light);
+    color:#1f3a30;
+    font-size:12px;
+    font-weight:700;
+    padding:9px 6px;
+    border:1px solid var(--green-border);
+    text-align:center;
+    white-space:nowrap;
+  }
+  tbody td{
+    border:1px solid #e6ece9;
+    padding:6px;
+    text-align:center;
+    vertical-align:middle;
+    font-size:12.5px;
+  }
+  tbody input, tbody select{
+    width:100%;
+    padding:6px 5px;
+    border:1px solid #d8e0dc;
+    border-radius:4px;
+    font-size:12.5px;
+    text-align:center;
+    background:#fff;
+  }
+  tbody select{text-align:left;}
+  .num-cell{font-variant-numeric:tabular-nums;}
+  .calc-cell{background:#f7faf8;font-weight:600;}
+  .balance{color:var(--red);font-weight:700;}
+  .del-btn{
+    background:#fdeceb;
+    border:1px solid #f3c9c4;
+    color:var(--red);
+    border-radius:5px;
+    width:30px;height:30px;
+    cursor:pointer;
+    font-size:14px;
+    display:inline-flex;align-items:center;justify-content:center;
+  }
+  .totals-strip{
+    display:grid;
+    background:var(--green-light);
+    border-top:1px solid var(--green-border);
+    text-align:center;
+  }
+  .totals-strip .tot-item{
+    padding:12px 6px;
+    border-right:1px solid var(--green-border);
+  }
+  .totals-strip .tot-item:last-child{border-right:none;}
+  .totals-strip .tot-label{
+    font-weight:700;
+    color:#2a3a34;
+    font-size:12.5px;
+    margin-bottom:4px;
+  }
+  .totals-strip .tot-value{font-weight:700;font-size:16px;}
+  .tot-value.red{color:var(--red);}
+  .tot-value.loss{color:var(--red);}
+  .purchases-totals,.sales-totals{grid-template-columns:repeat(6,1fr);}
+  .bottom-row{
+    display:flex;
+    gap:14px;
+    padding:14px 16px 18px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    background:var(--bg);
+  }
+  .panel{
+    background:#fff;
+    border-radius:8px;
+    border:1px solid #dfe6e2;
+    overflow:hidden;
+    flex:1;
+    min-width:420px;
+  }
+  .panel-header{
+    background:var(--green-dark);
+    color:#fff;
+    padding:9px 16px;
+    font-weight:700;
+    font-size:13px;
+  }
+  .exp-table td, .exp-table th{font-size:12.5px;}
+  .exp-total-row{
+    display:flex;
+    justify-content:center;
+    gap:8px;
+    padding:10px;
+    font-weight:700;
+    background:var(--green-light);
+    border-top:1px solid var(--green-border);
+  }
+  .summary-body{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:0;
+    padding:14px 20px;
+  }
+  .summary-body .col{display:flex;flex-direction:column;gap:10px;}
+  .sum-line{
+    display:flex;
+    justify-content:space-between;
+    font-size:13.5px;
+    padding:4px 0;
+  }
+  .sum-line .lbl{color:#2a3a34;font-weight:600;}
+  .sum-line .val{font-weight:700;font-variant-numeric:tabular-nums;}
+  .sum-line.profit .val{color:#1a7a52;}
+  .sum-line.loss .val{color:var(--red);}
+  .sum-line.outstanding .val{color:var(--red);}
+  .sum-line.divider{border-top:1px solid #e5ece8;padding-top:10px;margin-top:2px;}
+  .footer-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+    padding:16px 20px 22px;
+    background:var(--bg);
+  }
+  .footer-actions .btn{padding:10px 22px;font-size:13.5px;}
+  @media (max-width:900px){
+    .bottom-row{flex-direction:column;}
+    .panel{min-width:100%;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="titlebar">
+    <span>BILL ENTRY</span>
+  </div>
+
+  <div class="meta-row">
+    <div class="field"><label>Date</label><input type="date" id="entryDate"></div>
+    <div class="field"><label>Time</label><input type="text" id="entryTime" readonly></div>
+    <div class="field"><label>Empty Bird (g)</label><input type="number" id="emptyBirdG" value="40" min="0" step="1" style="width:80px"></div>
+    <div class="field"><label>Remaining Weight</label><strong><span id="remWeight">0.00</span> Kg</strong></div>
+  </div>
+
+  <!-- PURCHASES -->
+  <div class="section-header">
+    <span>PURCHASES</span>
+    <button class="btn btn-add" onclick="addPurchaseRow()">+ Add Purchase</button>
+  </div>
+  <div style="overflow-x:auto;">
+  <table id="purchaseTable">
+    <thead>
+      <tr>
+        <th>Party</th><th>Item</th><th>Driver</th><th>Mobile</th><th>Vehicle</th>
+        <th>Boxes</th><th>Birds / Box</th><th>Total Birds</th><th>Weighbridge Wt (Kg)</th>
+        <th>Net Kg</th><th>Avg Wt</th><th>Rate / Kg</th><th>Amount</th>
+        <th>Cash</th><th>UPI</th><th>Bank</th><th>Balance</th><th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="purchaseBody"></tbody>
+  </table>
+  </div>
+  <div class="totals-strip purchases-totals">
+    <div class="tot-item"><div class="tot-label">Total Purchases</div><div class="tot-value" id="pTotCount">0</div></div>
+    <div class="tot-item"><div class="tot-label">Total Birds</div><div class="tot-value" id="pTotBirds">0</div></div>
+    <div class="tot-item"><div class="tot-label">Total Net Weight</div><div class="tot-value" id="pTotWeight">0.00 Kg</div></div>
+    <div class="tot-item"><div class="tot-label">Total Amount</div><div class="tot-value" id="pTotAmount">0.00</div></div>
+    <div class="tot-item"><div class="tot-label">Total Paid</div><div class="tot-value" id="pTotPaid">0.00</div></div>
+    <div class="tot-item"><div class="tot-label">Total Balance</div><div class="tot-value red" id="pTotBalance">0.00</div></div>
+  </div>
+
+  <!-- SALES -->
+  <div class="section-header" style="margin-top:18px;background:#0f5c45;">
+    <span>SALES</span>
+    <button class="btn btn-add" onclick="addSaleRow()">+ Add Sale</button>
+  </div>
+  <div style="overflow-x:auto;">
+  <table id="saleTable">
+    <thead>
+      <tr>
+        <th>Party</th><th>Item</th><th>Driver</th><th>Mobile</th><th>Vehicle</th>
+        <th>Boxes</th><th>Birds / Box</th><th>Total Birds</th>
+        <th>Weighbridge Wt (Kg)</th><th>Net Kg</th><th>Rate / Kg</th><th>Box Rate</th>
+        <th>Total Invoice</th><th>Cash</th><th>UPI</th><th>Bank</th><th>Balance</th><th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="saleBody"></tbody>
+  </table>
+  </div>
+  <div class="totals-strip sales-totals">
+    <div class="tot-item"><div class="tot-label">Total Sales</div><div class="tot-value" id="sTotCount">0</div></div>
+    <div class="tot-item"><div class="tot-label">Total Birds</div><div class="tot-value" id="sTotBirds">0</div></div>
+    <div class="tot-item"><div class="tot-label">Total Net Weight</div><div class="tot-value" id="sTotWeight">0.00 Kg</div></div>
+    <div class="tot-item"><div class="tot-label">Total Invoice</div><div class="tot-value" id="sTotInvoice">0.00</div></div>
+    <div class="tot-item"><div class="tot-label">Total Received</div><div class="tot-value" id="sTotReceived">0.00</div></div>
+    <div class="tot-item"><div class="tot-label">Total Balance</div><div class="tot-value red" id="sTotBalance">0.00</div></div>
+  </div>
+
+  <!-- EXPENSES + SUMMARY -->
+  <div class="bottom-row">
+    <div class="panel">
+      <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>EXPENSES</span>
+        <button class="btn btn-add" onclick="addExpenseRow()">+ Add Expense</button>
+      </div>
+      <table class="exp-table" id="expenseTable">
+        <thead>
+          <tr><th>Category</th><th>Expense Name</th><th>Cash</th><th>UPI</th><th>Total</th><th>Note</th><th>Action</th></tr>
+        </thead>
+        <tbody id="expenseBody"></tbody>
+      </table>
+      <div class="exp-total-row">
+        <span>Total Expenses</span><span id="expTotal">0.00</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">SUMMARY</div>
+      <div class="summary-body">
+        <div class="col">
+          <div class="sum-line"><span class="lbl">Purchase Amount</span><span class="val" id="sumPurchase">0.00</span></div>
+          <div class="sum-line"><span class="lbl">Sale Amount</span><span class="val" id="sumSale">0.00</span></div>
+          <div class="sum-line"><span class="lbl">Expenses</span><span class="val" id="sumExpense">0.00</span></div>
+          <div class="sum-line profit" id="sumProfitLine"><span class="lbl">Profit / Loss</span><span class="val" id="sumProfit">0.00</span></div>
+          <div class="sum-line"><span class="lbl">Cash Received</span><span class="val" id="sumCash">0.00</span></div>
+        </div>
+        <div class="col">
+          <div class="sum-line"><span class="lbl">UPI Received</span><span class="val" id="sumUpi">0.00</span></div>
+          <div class="sum-line"><span class="lbl">Bank Received</span><span class="val" id="sumBank">0.00</span></div>
+          <div class="sum-line"><span class="lbl">Total Received</span><span class="val" id="sumTotalReceived">0.00</span></div>
+          <div class="sum-line outstanding divider"><span class="lbl">Outstanding (Sales)</span><span class="val" id="sumOutstanding">0.00</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-actions">
+    <button class="btn btn-cancel" onclick="location.reload()">Cancel</button>
+    <button class="btn btn-save" onclick="alert('HTML reference only — use Bill Entry in the app to save')">Save</button>
+    <button class="btn btn-save-print" onclick="alert('HTML reference only — use Bill Entry in the app to save')">Save & Print</button>
+  </div>
+
+</div>
+
+<script>
+const fmt = n => (isNaN(n)?0:n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const int = v => { const n = parseInt(v, 10); return isNaN(n) ? 0 : n; };
+
+function emptyBirdKg() {
+  return (num(document.getElementById('emptyBirdG').value) || 40) / 1000;
+}
+
+function calcNet(weigh, birds, overrideNet, netManual) {
+  if (netManual && overrideNet !== null && overrideNet !== undefined && overrideNet !== '') {
+    return num(overrideNet);
+  }
+  return Math.max(0, num(weigh) - (num(birds) * emptyBirdKg()));
+}
+
+function totalBirds(boxes, bpb) { return int(boxes) * int(bpb); }
+
+/* ---------- PURCHASES ---------- */
+let purchaseData = [
+  {party:"XYZ FARMS", item:"BROILER", driver:"Ramesh", mobile:"9876543210", vehicle:"TN-52-AB-1234", boxes:20, bpb:40, weigh:240.00, net:null, netManual:false, rate:143.00, cash:10000, upi:5000, bank:5000},
+  {party:"GREEN POULTRY", item:"BROILER", driver:"Suresh", mobile:"9845612345", vehicle:"TN-30-CD-5678", boxes:15, bpb:20, weigh:127.50, net:null, netManual:false, rate:143.00, cash:8000, upi:2000, bank:0},
+  {party:"KM POULTRY", item:"BROILER", driver:"Kumar", mobile:"9753186420", vehicle:"TN-52-EF-9012", boxes:10, bpb:15, weigh:65.00, net:null, netManual:false, rate:143.00, cash:5000, upi:0, bank:0},
+];
+
+function purchaseDerived(r) {
+  const birds = totalBirds(r.boxes, r.bpb);
+  const net = calcNet(r.weigh, birds, r.net, r.netManual);
+  const avgWt = birds ? net / birds : 0;
+  const amount = net * num(r.rate);
+  const paid = num(r.cash) + num(r.upi) + num(r.bank);
+  const balance = amount - paid;
+  return { birds, net, avgWt, amount, paid, balance };
+}
+
+function renderPurchases(){
+  const body = document.getElementById('purchaseBody');
+  body.innerHTML = '';
+  let totBirds=0, totWeight=0, totAmount=0, totPaid=0, totBalance=0;
+
+  purchaseData.forEach((r,i)=>{
+    const d = purchaseDerived(r);
+    totBirds += d.birds;
+    totWeight += d.net;
+    totAmount += d.amount;
+    totPaid += d.paid;
+    totBalance += d.balance;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input data-f="party" data-i="${i}" value="${r.party||''}"></td>
+      <td><input data-f="item" data-i="${i}" value="${r.item||''}"></td>
+      <td><input data-f="driver" data-i="${i}" value="${r.driver||''}"></td>
+      <td><input data-f="mobile" data-i="${i}" value="${r.mobile||''}"></td>
+      <td><input data-f="vehicle" data-i="${i}" value="${r.vehicle||''}"></td>
+      <td><input type="number" data-f="boxes" data-i="${i}" value="${r.boxes}"></td>
+      <td><input type="number" data-f="bpb" data-i="${i}" value="${r.bpb}"></td>
+      <td class="num-cell calc-cell">${d.birds}</td>
+      <td><input type="number" step="0.01" data-f="weigh" data-i="${i}" value="${r.weigh}"></td>
+      <td><input type="number" step="0.01" data-f="net" data-i="${i}" value="${d.net.toFixed(2)}"></td>
+      <td class="num-cell calc-cell">${d.avgWt.toFixed(3)}</td>
+      <td><input type="number" step="0.01" data-f="rate" data-i="${i}" value="${r.rate}"></td>
+      <td class="num-cell calc-cell">${fmt(d.amount)}</td>
+      <td><input type="number" step="0.01" data-f="cash" data-i="${i}" value="${r.cash}"></td>
+      <td><input type="number" step="0.01" data-f="upi" data-i="${i}" value="${r.upi}"></td>
+      <td><input type="number" step="0.01" data-f="bank" data-i="${i}" value="${r.bank}"></td>
+      <td class="num-cell balance calc-cell">${fmt(d.balance)}</td>
+      <td><button class="del-btn" onclick="deletePurchase(${i})">🗑</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('input[data-f]').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const i = +e.target.dataset.i;
+      const f = e.target.dataset.f;
+      if (['boxes','bpb'].includes(f)) purchaseData[i][f] = int(e.target.value);
+      else if (['weigh','rate','cash','upi','bank'].includes(f)) {
+        purchaseData[i][f] = num(e.target.value);
+        if (f === 'weigh') purchaseData[i].netManual = false;
+      } else if (f === 'net') {
+        purchaseData[i].net = num(e.target.value);
+        purchaseData[i].netManual = true;
+      } else purchaseData[i][f] = e.target.value;
+      if (['boxes','bpb','weigh'].includes(f) && !purchaseData[i].netManual) {
+        const birds = totalBirds(purchaseData[i].boxes, purchaseData[i].bpb);
+        purchaseData[i].net = calcNet(purchaseData[i].weigh, birds, null, false);
+      }
+      renderPurchases();
+    });
+  });
+
+  document.getElementById('pTotCount').textContent = purchaseData.length;
+  document.getElementById('pTotBirds').textContent = totBirds.toLocaleString('en-IN');
+  document.getElementById('pTotWeight').textContent = fmt(totWeight) + ' Kg';
+  document.getElementById('pTotAmount').textContent = fmt(totAmount);
+  document.getElementById('pTotPaid').textContent = fmt(totPaid);
+  document.getElementById('pTotBalance').textContent = fmt(totBalance);
+  updateSummary();
+}
+function deletePurchase(i){ purchaseData.splice(i,1); renderPurchases(); }
+function addPurchaseRow(){
+  purchaseData.push({party:"", item:"BROILER", driver:"", mobile:"", vehicle:"", boxes:0, bpb:0, weigh:0, net:0, netManual:false, rate:0, cash:0, upi:0, bank:0});
+  renderPurchases();
+}
+
+/* ---------- SALES ---------- */
+let saleData = [
+  {party:"SRI TRADERS", item:"BROILER", driver:"Ravi", mobile:"9000011111", vehicle:"TN-37-AA-1001", boxes:15, bpb:30, weigh:180.00, net:null, netManual:false, rate:148.00, boxRate:15.00, cash:10000, upi:5000, bank:0},
+  {party:"KUMAR TRADERS", item:"BROILER", driver:"Mani", mobile:"9000022222", vehicle:"TN-33-BB-2002", boxes:10, bpb:25, weigh:102.00, net:null, netManual:false, rate:148.00, boxRate:15.00, cash:5000, upi:3000, bank:0},
+  {party:"SIVA POULTRY", item:"BROILER", driver:"Vel", mobile:"9000033333", vehicle:"TN-39-CC-3003", boxes:8, bpb:25, weigh:85.00, net:null, netManual:false, rate:148.00, boxRate:15.00, cash:6000, upi:2000, bank:0},
+];
+
+function saleDerived(r) {
+  const birds = totalBirds(r.boxes, r.bpb);
+  const net = calcNet(r.weigh, birds, r.net, r.netManual);
+  const invoice = net * num(r.rate) + int(r.boxes) * num(r.boxRate);
+  const received = num(r.cash) + num(r.upi) + num(r.bank);
+  const balance = invoice - received;
+  return { birds, net, invoice, received, balance };
+}
+
+function renderSales(){
+  const body = document.getElementById('saleBody');
+  body.innerHTML = '';
+  let totBirds=0, totWeight=0, totInvoice=0, totReceived=0, totBalance=0;
+
+  saleData.forEach((r,i)=>{
+    const d = saleDerived(r);
+    totBirds += d.birds;
+    totWeight += d.net;
+    totInvoice += d.invoice;
+    totReceived += d.received;
+    totBalance += d.balance;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input data-f="party" data-i="${i}" value="${r.party||''}"></td>
+      <td><input data-f="item" data-i="${i}" value="${r.item||''}"></td>
+      <td><input data-f="driver" data-i="${i}" value="${r.driver||''}"></td>
+      <td><input data-f="mobile" data-i="${i}" value="${r.mobile||''}"></td>
+      <td><input data-f="vehicle" data-i="${i}" value="${r.vehicle||''}"></td>
+      <td><input type="number" data-f="boxes" data-i="${i}" value="${r.boxes}"></td>
+      <td><input type="number" data-f="bpb" data-i="${i}" value="${r.bpb}"></td>
+      <td class="num-cell calc-cell">${d.birds}</td>
+      <td><input type="number" step="0.01" data-f="weigh" data-i="${i}" value="${r.weigh}"></td>
+      <td><input type="number" step="0.01" data-f="net" data-i="${i}" value="${d.net.toFixed(2)}"></td>
+      <td><input type="number" step="0.01" data-f="rate" data-i="${i}" value="${r.rate}"></td>
+      <td><input type="number" step="0.01" data-f="boxRate" data-i="${i}" value="${r.boxRate}"></td>
+      <td class="num-cell calc-cell">${fmt(d.invoice)}</td>
+      <td><input type="number" step="0.01" data-f="cash" data-i="${i}" value="${r.cash}"></td>
+      <td><input type="number" step="0.01" data-f="upi" data-i="${i}" value="${r.upi}"></td>
+      <td><input type="number" step="0.01" data-f="bank" data-i="${i}" value="${r.bank}"></td>
+      <td class="num-cell balance calc-cell">${fmt(d.balance)}</td>
+      <td><button class="del-btn" onclick="deleteSale(${i})">🗑</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('input[data-f]').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const i = +e.target.dataset.i;
+      const f = e.target.dataset.f;
+      if (['boxes','bpb'].includes(f)) saleData[i][f] = int(e.target.value);
+      else if (['weigh','rate','boxRate','cash','upi','bank'].includes(f)) {
+        saleData[i][f] = num(e.target.value);
+        if (f === 'weigh') saleData[i].netManual = false;
+      } else if (f === 'net') {
+        saleData[i].net = num(e.target.value);
+        saleData[i].netManual = true;
+      } else saleData[i][f] = e.target.value;
+      if (['boxes','bpb','weigh'].includes(f) && !saleData[i].netManual) {
+        const birds = totalBirds(saleData[i].boxes, saleData[i].bpb);
+        saleData[i].net = calcNet(saleData[i].weigh, birds, null, false);
+      }
+      renderSales();
+    });
+  });
+
+  document.getElementById('sTotCount').textContent = saleData.length;
+  document.getElementById('sTotBirds').textContent = totBirds.toLocaleString('en-IN');
+  document.getElementById('sTotWeight').textContent = fmt(totWeight) + ' Kg';
+  document.getElementById('sTotInvoice').textContent = fmt(totInvoice);
+  document.getElementById('sTotReceived').textContent = fmt(totReceived);
+  document.getElementById('sTotBalance').textContent = fmt(totBalance);
+  updateSummary();
+}
+function deleteSale(i){ saleData.splice(i,1); renderSales(); }
+function addSaleRow(){
+  saleData.push({party:"", item:"BROILER", driver:"", mobile:"", vehicle:"", boxes:0, bpb:0, weigh:0, net:0, netManual:false, rate:0, boxRate:0, cash:0, upi:0, bank:0});
+  renderSales();
+}
+
+/* ---------- EXPENSES ---------- */
+let expenseData = [
+  {cat:"Transport", name:"Transport Charges", cash:300.00, upi:0.00, note:"Loading point to farm"},
+  {cat:"Loading", name:"Loading Charges", cash:150.00, upi:0.00, note:"Labour charges"},
+  {cat:"Other", name:"Other Expenses", cash:0.00, upi:100.00, note:"Miscellaneous"},
+];
+
+function renderExpenses(){
+  const body = document.getElementById('expenseBody');
+  body.innerHTML = '';
+  let total = 0;
+
+  expenseData.forEach((r,i)=>{
+    const t = num(r.cash) + num(r.upi);
+    total += t;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input data-f="cat" data-i="${i}" value="${r.cat||''}"></td>
+      <td><input data-f="name" data-i="${i}" value="${r.name||''}"></td>
+      <td><input type="number" step="0.01" data-f="cash" data-i="${i}" value="${r.cash}"></td>
+      <td><input type="number" step="0.01" data-f="upi" data-i="${i}" value="${r.upi}"></td>
+      <td class="num-cell calc-cell">${fmt(t)}</td>
+      <td><input data-f="note" data-i="${i}" value="${r.note||''}"></td>
+      <td><button class="del-btn" onclick="deleteExpense(${i})">🗑</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('input[data-f]').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const i = +e.target.dataset.i;
+      const f = e.target.dataset.f;
+      if (['cash','upi'].includes(f)) expenseData[i][f] = num(e.target.value);
+      else expenseData[i][f] = e.target.value;
+      renderExpenses();
+    });
+  });
+
+  document.getElementById('expTotal').textContent = fmt(total);
+  updateSummary();
+}
+function deleteExpense(i){ expenseData.splice(i,1); renderExpenses(); }
+function addExpenseRow(){
+  expenseData.push({cat:"Other", name:"", cash:0, upi:0, note:""});
+  renderExpenses();
+}
+
+/* ---------- SUMMARY ---------- */
+function updateSummary(){
+  let purchaseAmount=0, purchaseNet=0;
+  purchaseData.forEach(r=>{
+    const d = purchaseDerived(r);
+    purchaseAmount += d.amount;
+    purchaseNet += d.net;
+  });
+
+  let saleAmount=0, saleNet=0, saleCash=0, saleUpi=0, saleBank=0, saleBalance=0;
+  saleData.forEach(r=>{
+    const d = saleDerived(r);
+    saleAmount += d.invoice;
+    saleNet += d.net;
+    saleCash += num(r.cash);
+    saleUpi += num(r.upi);
+    saleBank += num(r.bank);
+    saleBalance += d.balance;
+  });
+
+  let expenseTotal=0;
+  expenseData.forEach(r=> expenseTotal += num(r.cash) + num(r.upi));
+
+  const profit = saleAmount - purchaseAmount - expenseTotal;
+  const totalReceived = saleCash + saleUpi + saleBank;
+  const remaining = purchaseNet - saleNet;
+
+  document.getElementById('remWeight').textContent = fmt(remaining);
+  document.getElementById('sumPurchase').textContent = fmt(purchaseAmount);
+  document.getElementById('sumSale').textContent = fmt(saleAmount);
+  document.getElementById('sumExpense').textContent = fmt(expenseTotal);
+  document.getElementById('sumProfit').textContent = fmt(profit);
+  const profitLine = document.getElementById('sumProfitLine');
+  profitLine.classList.toggle('loss', profit < 0);
+  profitLine.classList.toggle('profit', profit >= 0);
+  document.getElementById('sumCash').textContent = fmt(saleCash);
+  document.getElementById('sumUpi').textContent = fmt(saleUpi);
+  document.getElementById('sumBank').textContent = fmt(saleBank);
+  document.getElementById('sumTotalReceived').textContent = fmt(totalReceived);
+  document.getElementById('sumOutstanding').textContent = fmt(saleBalance);
+}
+
+function initMeta(){
+  const now = new Date();
+  document.getElementById('entryDate').value = now.toISOString().slice(0,10);
+  document.getElementById('entryTime').value = now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('emptyBirdG').addEventListener('input', () => {
+    purchaseData.forEach(r => { if (!r.netManual) r.net = null; });
+    saleData.forEach(r => { if (!r.netManual) r.net = null; });
+    renderPurchases();
+    renderSales();
+  });
+}
+
+initMeta();
+renderPurchases();
+renderSales();
+renderExpenses();
+</script>
+</body>
+</html>

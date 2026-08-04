@@ -19,3 +19,7 @@ The application should support both **Android mobile devices** (primary platform
 The app must be simple, reliable, and prioritize fast data entry.
 
 - [2026-07-27] generate a unique bill for purchase as PUR-YYYY-000001 and sale as SAL-YYYY-000001, reset every new year.
+
+### [2026-08-01 10:18:00] Idea: Add Nickname field to Party
+**Description**: User requested to add a 'Nickname' field under Name/Company Name when adding a new party.
+

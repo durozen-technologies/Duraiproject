@@ -5,8 +5,11 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Save, Truck, Box, Scale, Calculator, Banknote, Edit2, Pencil, Trash2 } from 'lucide-react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Picker } from '@react-native-picker/picker';
+import PartySearchDropdown from '../components/PartySearchDropdown';
+import DriverSearchDropdown from '../components/DriverSearchDropdown';
+import ItemSearchDropdown from '../components/ItemSearchDropdown';
 import client from '../api/client';
+import { fetchDrivers } from '../api/drivers';
 import { formatDateToDDMMYYYY } from '../utils/formatDate';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -18,6 +21,8 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
   const [form, setForm] = useState({
     date: editData?.date || new Date().toISOString().split('T')[0],
     supplier_id: editData?.party_id || '',
+    item_id: editData?.item_id || '',
+    driver_id: editData?.driver_id || '',
     driver_name: editData?.driver_name || '',
     vehicle_number: editData?.vehicle_number || '',
     total_boxes: editData?.total_boxes?.toString() || '',
@@ -30,6 +35,7 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
     total_amount: editData?.purchase_amount?.toString() || '',
     cash_payment: editData?.cash_payment?.toString() || '',
     upi_payment: editData?.upi_payment?.toString() || '',
+    bank_payment: editData?.bank_payment?.toString() || '',
     empty_bird_weight_g: '40',
     remarks: editData?.remarks || ''
   });
@@ -38,6 +44,19 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
     queryKey: ['parties'],
     queryFn: async () => {
       const res = await client.get('/parties/');
+      return res.data;
+    }
+  });
+
+  const { data: drivers } = useQuery({
+    queryKey: ['drivers'],
+    queryFn: fetchDrivers
+  });
+
+  const { data: items } = useQuery({
+    queryKey: ['items'],
+    queryFn: async () => {
+      const res = await client.get('/items/');
       return res.data;
     }
   });
@@ -56,13 +75,8 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
     loadGrams();
   }, []);
 
-  const updateEmptyBirdWeight = async (v: string) => {
+  const updateEmptyBirdWeight = (v: string) => {
     setForm(f => ({ ...f, empty_bird_weight_g: v }));
-    try {
-      await client.put('/settings/empty_bird_weight_g', { value: v });
-    } catch (e) {
-      console.error("Failed to save empty bird weight", e);
-    }
   };
 
   const [isEditingBirds, setIsEditingBirds] = useState(false);
@@ -145,7 +159,10 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
       setErrorMsg('');
       setSuccessMsg(`Purchase ${editData ? 'updated' : 'saved'} successfully`);
-      setTimeout(() => navigation.goBack(), 1500);
+      setTimeout(() => {
+        if (navigation.canGoBack()) navigation.goBack();
+        else navigation.navigate('MainTabs');
+      }, 1500);
     },
     onError: (error: any) => {
       let msg = `Failed to ${editData ? 'update' : 'save'} purchase`;
@@ -174,7 +191,10 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
       setShowDeleteConfirm(false);
       setErrorMsg('');
       setSuccessMsg("Purchase deleted successfully");
-      setTimeout(() => navigation.goBack(), 1500);
+      setTimeout(() => {
+        if (navigation.canGoBack()) navigation.goBack();
+        else navigation.navigate('MainTabs');
+      }, 1500);
     },
     onError: (error: any) => {
       setShowDeleteConfirm(false);
@@ -190,7 +210,7 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
   const handleSave = () => {
     const newErrors: any = {};
     if (!form.supplier_id) newErrors.supplier_id = "Purchaser is required";
-    if (!form.driver_name) newErrors.driver_name = "Driver Name is required";
+    if (!form.driver_id && !form.driver_name) newErrors.driver_id = "Driver is required";
     const vehicleRegex = /^[A-Za-z]{2}-\d{2}-[A-Za-z]{1,2}-\d{4}$/;
     if (!form.vehicle_number) {
       newErrors.vehicle_number = "Vehicle Number is required";
@@ -213,6 +233,9 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
       ...form,
       date: form.date || new Date().toISOString().split('T')[0],
       party_id: form.supplier_id,
+      item_id: form.item_id || null,
+      driver_id: form.driver_id || null,
+      driver_name: form.driver_name,
       total_boxes: parseInt(form.total_boxes) || 0,
       birds_per_box: parseInt(form.birds_per_box) || 0,
       actual_birds: parseInt(form.actual_birds) || 0,
@@ -221,15 +244,20 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
       purchase_rate: parseFloat(form.purchase_rate) || 0,
       purchase_amount: parseFloat(form.total_amount) || 0,
       cash_payment: parseFloat(form.cash_payment) || 0,
-      upi_payment: parseFloat(form.upi_payment) || 0
+      upi_payment: parseFloat(form.upi_payment) || 0,
+      bank_payment: parseFloat(form.bank_payment) || 0,
+      remarks: form.remarks
     });
   };
+
+  const selectedDriver = drivers?.find((d: any) => d.id === form.driver_id);
+  const driverMobile = selectedDriver?.mobile || '';
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <View className="px-4 py-3 bg-white border-b border-gray-100 flex-row items-center justify-between shadow-sm">
         <View className="flex-row items-center">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
+          <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MainTabs')} className="mr-4">
             <ArrowLeft size={24} color="#111827" />
           </TouchableOpacity>
           <View>
@@ -267,7 +295,7 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
           </View>
           
           <View className="space-y-3">
-            <View className="flex-col md:flex-row md:justify-between">
+            <View className="flex-col md:flex-row md:justify-between" style={{ zIndex: 50, elevation: 50 }}>
               <View className="md:w-[48%] mb-3 md:mb-0">
                 <Text className="text-xs font-medium text-gray-700 mb-1">Date</Text>
                 {Platform.OS === 'web' ? (
@@ -304,42 +332,75 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
               </View>
               <View className="md:w-[48%]">
                 <Text className="text-xs font-medium text-gray-700 mb-1">Purchaser</Text>
-                <View className="w-full bg-white border border-gray-300 rounded-md justify-center min-h-[50px]">
-                  <Picker
-                    selectedValue={form.supplier_id}
-                    onValueChange={(itemValue) => setForm({...form, supplier_id: itemValue})}
-                    mode="dropdown"
-                    style={{ width: '100%' }}
-                  >
-                    <Picker.Item label="Select a Purchaser..." value="" color="#9ca3af" />
-                    {parties?.filter((p: any) => p.type === 'PURCHASER' && p.is_active !== false).map((party: any) => (
-                      <Picker.Item key={party.id} label={party.name} value={party.id} />
-                    ))}
-                  </Picker>
+                <View style={{ zIndex: 50 }}>
+                  <PartySearchDropdown
+                    parties={parties?.filter((p: any) => (p.type === 'PURCHASER' || p.type === 'BOTH') && p.is_active !== false)}
+                    value={form.supplier_id}
+                    onSelect={(id: string) => {
+                      setForm({...form, supplier_id: id});
+                      setErrors({...errors, supplier_id: null});
+                    }}
+                    placeholder="Search Purchaser (min 2 chars)..."
+                    error={errors.supplier_id}
+                  />
                 </View>
-                {errors.supplier_id && <Text className="text-red-500 text-xs mt-1">{errors.supplier_id}</Text>}
               </View>
             </View>
-            <View className="flex-col md:flex-row md:justify-between">
-              <View className="md:w-[48%] mb-3 md:mb-0">
-                <Text className="text-xs font-medium text-gray-700 mb-1">Driver Name</Text>
-                <TextInput 
-                  placeholder="Ramu"
-                  value={form.driver_name}
-                  onChangeText={(v) => { setForm({...form, driver_name: v}); setErrors({...errors, driver_name: null}); }}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm"
-                />
-                {errors.driver_name && <Text className="text-red-500 text-xs mt-1">{errors.driver_name}</Text>}
+            
+            <View className="flex-col md:flex-row md:justify-between" style={{ zIndex: 45, elevation: 45 }}>
+              <View className="w-full mb-3 md:mb-0">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Item</Text>
+                <View style={{ zIndex: 45 }}>
+                  <ItemSearchDropdown
+                    items={items?.filter((i: any) => i.is_active !== false)}
+                    value={form.item_id}
+                    onSelect={(id: string) => {
+                      setForm({...form, item_id: id});
+                    }}
+                    placeholder="Select Item..."
+                  />
+                </View>
               </View>
-              <View className="md:w-[48%]">
-                <Text className="text-xs font-medium text-gray-700 mb-1">Vehicle Number</Text>
+            </View>
+            <View className="flex-row justify-between" style={{ zIndex: 40 }}>
+              <View className="w-[32%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Driver</Text>
+                <View style={{ zIndex: 40 }}>
+                  <DriverSearchDropdown
+                    drivers={drivers?.filter((d: any) => d.is_active || d.id === form.driver_id)}
+                    value={form.driver_id || form.driver_name}
+                    onSelect={(val: string) => {
+                      if (val && val.length === 36 && val.includes('-')) {
+                        setForm({...form, driver_id: val, driver_name: ''});
+                      } else {
+                        setForm({...form, driver_id: '', driver_name: val});
+                      }
+                      setErrors({...errors, driver_id: null});
+                    }}
+                    placeholder="Search..."
+                    error={errors.driver_id}
+                  />
+                </View>
+                {errors.driver_id && <Text className="text-red-500 text-[10px] mt-1">{errors.driver_id}</Text>}
+              </View>
+              <View className="w-[32%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Driver Mobile</Text>
                 <TextInput 
-                  placeholder="MH-12-AB-1234"
+                  value={driverMobile}
+                  editable={false}
+                  placeholder="N/A"
+                  className="w-full px-2 py-2.5 bg-gray-100 border border-gray-300 rounded-md text-xs text-gray-500"
+                />
+              </View>
+              <View className="w-[32%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Vehicle No</Text>
+                <TextInput 
+                  placeholder="MH-12-AB"
                   value={form.vehicle_number}
                   onChangeText={handleVehicleNumberChange}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm"
+                  className="w-full px-2 py-2.5 bg-white border border-gray-300 rounded-md text-xs"
                 />
-                {errors.vehicle_number && <Text className="text-red-500 text-xs mt-1">{errors.vehicle_number}</Text>}
+                {errors.vehicle_number && <Text className="text-red-500 text-[10px] mt-1">{errors.vehicle_number}</Text>}
               </View>
             </View>
           </View>
@@ -513,8 +574,8 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
           
           <View className="space-y-3">
             <View className="flex-row justify-between">
-              <View className="w-[48%]">
-                <Text className="text-xs font-medium text-gray-700 mb-1">Cash Payment (₹)</Text>
+              <View className="w-[31%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Cash Payment</Text>
                 <TextInput 
                   placeholder="0.00" 
                   keyboardType="numeric" 
@@ -523,8 +584,8 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
                   className="w-full px-3 py-2.5 border border-gray-300 bg-white rounded-md text-sm font-bold" 
                 />
               </View>
-              <View className="w-[48%]">
-                <Text className="text-xs font-medium text-gray-700 mb-1">UPI Payment (₹)</Text>
+              <View className="w-[31%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">UPI Payment</Text>
                 <TextInput 
                   placeholder="0.00" 
                   keyboardType="numeric" 
@@ -533,16 +594,26 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
                   className="w-full px-3 py-2.5 border border-gray-300 bg-white rounded-md text-sm font-bold" 
                 />
               </View>
+              <View className="w-[31%]">
+                <Text className="text-xs font-medium text-gray-700 mb-1">Bank Account</Text>
+                <TextInput 
+                  placeholder="0.00" 
+                  keyboardType="numeric" 
+                  value={form.bank_payment}
+                  onChangeText={(v) => setForm({...form, bank_payment: v})}
+                  className="w-full px-3 py-2.5 border border-gray-300 bg-white rounded-md text-sm font-bold" 
+                />
+              </View>
             </View>
             <View className="flex-row justify-between items-center bg-gray-100 p-3 rounded-md mt-2">
               <View>
                 <Text className="text-xs text-gray-500 font-medium">Total Paid</Text>
-                <Text className="text-sm font-bold text-[#006948]">₹ {((parseFloat(form.cash_payment) || 0) + (parseFloat(form.upi_payment) || 0)).toFixed(2)}</Text>
+                <Text className="text-sm font-bold text-[#006948]">₹ {((parseFloat(form.cash_payment) || 0) + (parseFloat(form.upi_payment) || 0) + (parseFloat(form.bank_payment) || 0)).toFixed(2)}</Text>
               </View>
               <View className="items-end">
                 <Text className="text-xs text-gray-500 font-medium">Balance Amount</Text>
                 <Text className="text-sm font-bold text-red-500">
-                  ₹ {((parseFloat(form.total_amount) || 0) - ((parseFloat(form.cash_payment) || 0) + (parseFloat(form.upi_payment) || 0))).toFixed(2)}
+                  ₹ {((parseFloat(form.total_amount) || 0) - ((parseFloat(form.cash_payment) || 0) + (parseFloat(form.upi_payment) || 0) + (parseFloat(form.bank_payment) || 0))).toFixed(2)}
                 </Text>
               </View>
             </View>
@@ -566,7 +637,8 @@ export default function NewPurchaseScreen({ navigation, route }: any) {
           <TouchableOpacity 
             onPress={() => {
               if (editData) setIsEditing(false);
-              else navigation.goBack();
+              if (navigation.canGoBack()) navigation.goBack();
+              else navigation.navigate('MainTabs');
             }}
             className={`${editData ? 'w-[25%]' : 'w-[30%]'} py-3 bg-white border border-gray-300 rounded-md items-center justify-center mr-2`}
           >

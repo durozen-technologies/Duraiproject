@@ -1,4 +1,3 @@
-
 from app.db.database import Base
 from .enums import PartyType, TransactionType
 from .user import User
@@ -10,6 +9,8 @@ from .transaction import PaymentTransaction
 from .payment_allocation import PaymentAllocation
 from .stock_override import StockOverride
 from .setting import Setting
+from .driver import Driver
+from .item import Item
 
 __all__ = [
     "Base",
@@ -23,5 +24,8 @@ __all__ = [
     "Expense",
     "PaymentTransaction",
     "PaymentAllocation",
-    "Setting"
+    "Setting",
+    "StockOverride",
+    "Driver",
+    "Item"
 ]

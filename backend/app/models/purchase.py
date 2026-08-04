@@ -13,6 +13,8 @@ class Purchase(Base, BaseModelMixin):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, index=True, default=uuid7)
     party_id: Mapped[UUID] = mapped_column(ForeignKey("parties.id"), nullable=False, index=True)
+    driver_id: Mapped[UUID | None] = mapped_column(ForeignKey("drivers.id"), nullable=True, index=True)
+    item_id: Mapped[UUID | None] = mapped_column(ForeignKey("items.id"), nullable=True, index=True)
     
     date: Mapped[date] = mapped_column(Date, nullable=False)
     bill_number: Mapped[str | None] = mapped_column(String(50), unique=True, index=True, nullable=True)
@@ -32,9 +34,12 @@ class Purchase(Base, BaseModelMixin):
     
     cash_payment: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
     upi_payment: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    bank_payment: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
     balance_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
     
     remarks: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False)
 
     party = relationship("Party", back_populates="purchases")
+    driver = relationship("Driver", back_populates="purchases")
+    item = relationship("Item", back_populates="purchases")
