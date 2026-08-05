@@ -39,7 +39,9 @@ class Sale(Base, BaseModelMixin):
     bank_payment: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
     balance_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    day_bill_id: Mapped[UUID | None] = mapped_column(ForeignKey("day_bills.id"), nullable=True, index=True)
 
     party = relationship("Party", back_populates="sales")
     driver = relationship("Driver", back_populates="sales")
     item = relationship("Item", back_populates="sales")
+    day_bill = relationship("DayBill", back_populates="sales")

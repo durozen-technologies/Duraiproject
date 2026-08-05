@@ -3,10 +3,11 @@ import { Platform, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LayoutGrid, ShoppingCart, Tag, Users, Receipt, Truck } from 'lucide-react-native';
+import { LayoutGrid, ShoppingCart, Tag, Users, Receipt, Truck, FileText } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 
 import DashboardScreen from '../screens/DashboardScreen';
+import BillsScreen from '../screens/BillsScreen';
 import PartiesScreen from '../screens/PartiesScreen';
 import PurchasesScreen from '../screens/PurchasesScreen';
 import SalesScreen from '../screens/SalesScreen';
@@ -37,6 +38,7 @@ export const linking = {
         path: '',
         screens: {
           Dashboard: 'dashboard',
+          Bill: 'bills',
           Purchases: 'purchases',
           Sales: 'sales',
           Parties: 'parties',
@@ -100,6 +102,13 @@ function MainTabNavigator() {
         component={DashboardScreen} 
         options={{
           tabBarIcon: ({ color }) => <LayoutGrid color={color} size={24} />,
+        }}
+      />
+      <Tab.Screen
+        name="Bill"
+        component={BillsScreen}
+        options={{
+          tabBarIcon: ({ color }) => <FileText color={color} size={24} />,
         }}
       />
       <Tab.Screen 

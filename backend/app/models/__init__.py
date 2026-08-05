@@ -11,6 +11,7 @@ from .stock_override import StockOverride
 from .setting import Setting
 from .driver import Driver
 from .item import Item
+from .day_bill import DayBill
 
 __all__ = [
     "Base",
@@ -27,5 +28,6 @@ __all__ = [
     "Setting",
     "StockOverride",
     "Driver",
-    "Item"
+    "Item",
+    "DayBill",
 ]

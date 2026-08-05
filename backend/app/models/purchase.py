@@ -39,7 +39,9 @@ class Purchase(Base, BaseModelMixin):
     
     remarks: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    day_bill_id: Mapped[UUID | None] = mapped_column(ForeignKey("day_bills.id"), nullable=True, index=True)
 
     party = relationship("Party", back_populates="purchases")
     driver = relationship("Driver", back_populates="purchases")
     item = relationship("Item", back_populates="purchases")
+    day_bill = relationship("DayBill", back_populates="purchases")

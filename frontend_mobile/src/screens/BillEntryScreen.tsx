@@ -20,7 +20,8 @@ import DriverSearchDropdown from '../components/DriverSearchDropdown';
 import ItemSearchDropdown from '../components/ItemSearchDropdown';
 import client from '../api/client';
 import { fetchDrivers } from '../api/drivers';
-import { createExpenseEntry, fetchExpenseCategories } from '../api/expenses';
+import { fetchExpenseCategories } from '../api/expenses';
+import { createDayBill } from '../api/dayBills';
 import { formatDateToDDMMYYYY } from '../utils/formatDate';
 import {
   derivePurchase,
@@ -363,14 +364,13 @@ export default function BillEntryScreen({ navigation }: any) {
       const filledP = purchases.filter(isPurchaseFilled);
       const filledS = sales.filter(isSaleFilled);
       const filledE = expenses.filter(isExpenseFilled);
-      const errors: string[] = [];
 
-      for (let i = 0; i < filledP.length; i++) {
-        const r = filledP[i];
-        const d = derivePurchase(r, emptyBirdG);
-        try {
-          await client.post('/purchases/', {
-            date,
+      const payload = {
+        date,
+        empty_bird_weight_g: parseNum(emptyBirdG) || 40,
+        purchases: filledP.map((r) => {
+          const d = derivePurchase(r, emptyBirdG);
+          return {
             party_id: r.party_id,
             item_id: r.item_id || null,
             driver_id: r.driver_id || null,
@@ -386,20 +386,13 @@ export default function BillEntryScreen({ navigation }: any) {
             cash_payment: parseNum(r.cash_payment),
             upi_payment: parseNum(r.upi_payment),
             bank_payment: parseNum(r.bank_payment),
-          });
-        } catch (e: any) {
-          errors.push(`Purchase #${i + 1}: ${e?.response?.data?.detail || e.message || 'failed'}`);
-        }
-      }
-
-      for (let i = 0; i < filledS.length; i++) {
-        const r = filledS[i];
-        const d = deriveSale(r, emptyBirdG);
-        const weightAmount = d.net * parseNum(r.weight_rate);
-        const boxAmount = parseIntSafe(r.boxes) * parseNum(r.box_rate);
-        try {
-          await client.post('/sales/', {
-            date,
+          };
+        }),
+        sales: filledS.map((r) => {
+          const d = deriveSale(r, emptyBirdG);
+          const weightAmount = d.net * parseNum(r.weight_rate);
+          const boxAmount = parseIntSafe(r.boxes) * parseNum(r.box_rate);
+          return {
             party_id: r.party_id,
             item_id: r.item_id || null,
             driver_id: r.driver_id || null,
@@ -418,55 +411,46 @@ export default function BillEntryScreen({ navigation }: any) {
             cash_payment: parseNum(r.cash_payment),
             upi_payment: parseNum(r.upi_payment),
             bank_payment: parseNum(r.bank_payment),
-          });
-        } catch (e: any) {
-          errors.push(`Sale #${i + 1}: ${e?.response?.data?.detail || e.message || 'failed'}`);
-        }
-      }
+          };
+        }),
+        expenses: filledE.map((r) => {
+          const cat = categories?.find((c) => c.id === r.category_id);
+          return {
+            category_id: r.category_id,
+            expense_name: r.expense_name || cat?.name || 'Expense',
+            cash_amount: parseNum(r.cash_amount),
+            upi_amount: parseNum(r.upi_amount),
+            note: r.note || undefined,
+          };
+        }),
+      };
 
-      for (let i = 0; i < filledE.length; i++) {
-        const r = filledE[i];
-        const cat = categories?.find((c) => c.id === r.category_id);
-        try {
-          await createExpenseEntry(
-            r.category_id,
-            r.expense_name || cat?.name || 'Expense',
-            parseNum(r.cash_amount),
-            parseNum(r.upi_amount),
-            r.note || undefined
-          );
-        } catch (e: any) {
-          errors.push(`Expense #${i + 1}: ${e?.response?.data?.detail || e.message || 'failed'}`);
-        }
-      }
-
-      return { errors, andPrint };
+      const created = await createDayBill(payload);
+      return { created, andPrint };
     },
-    onSuccess: ({ errors, andPrint }) => {
+    onSuccess: ({ created, andPrint }) => {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['expensesHistory'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['parties'] });
+      queryClient.invalidateQueries({ queryKey: ['dayBills'] });
 
-      if (errors.length > 0) {
-        setErrorMsg(errors.join('\n'));
-        setSuccessMsg('');
-        return;
-      }
-      setSuccessMsg(andPrint ? 'Saved. Print coming soon.' : 'All entries saved successfully');
+      const msg = andPrint
+        ? `Saved as ${created.bill_number}. Print coming soon.`
+        : `Saved as ${created.bill_number}`;
+      setSuccessMsg(msg);
       setErrorMsg('');
       if (Platform.OS === 'web') {
-        // brief pause then go back
-        setTimeout(() => navigation.goBack(), 800);
+        setTimeout(() => navigation.goBack(), 900);
       } else {
-        Alert.alert('Saved', andPrint ? 'Entries saved. Print coming soon.' : 'All entries saved successfully', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
+        Alert.alert('Saved', msg, [{ text: 'OK', onPress: () => navigation.goBack() }]);
       }
     },
     onError: (e: any) => {
-      setErrorMsg(e?.message || 'Save failed');
+      const detail = e?.response?.data?.detail;
+      setErrorMsg(typeof detail === 'string' ? detail : e?.message || 'Save failed');
     },
   });
 

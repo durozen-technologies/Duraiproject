@@ -33,5 +33,7 @@ class Expense(Base, BaseModelMixin):
     total_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
     
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    day_bill_id: Mapped[UUID | None] = mapped_column(ForeignKey("day_bills.id"), nullable=True, index=True)
 
     category = relationship("ExpenseCategory", back_populates="expenses")
+    day_bill = relationship("DayBill", back_populates="expenses")
