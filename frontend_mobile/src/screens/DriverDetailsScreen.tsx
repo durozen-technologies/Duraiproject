@@ -11,11 +11,21 @@ export default function DriverDetailsScreen({ route, navigation }: any) {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'PURCHASE' | 'SALE'>('ALL');
+  const formatAmount = (value: number) =>
+    Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const { data: parties } = useQuery({
     queryKey: ['parties'],
     queryFn: async () => {
       const response = await client.get(`/parties/`);
+      return response.data;
+    }
+  });
+
+  const { data: items } = useQuery({
+    queryKey: ['items'],
+    queryFn: async () => {
+      const response = await client.get(`/items/`);
       return response.data;
     }
   });
@@ -64,7 +74,7 @@ export default function DriverDetailsScreen({ route, navigation }: any) {
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const partyName = parties?.find((p: any) => p.id === bill.party_id)?.name?.toLowerCase() || '';
-        const billNo = bill.bill_number?.toLowerCase() || '';
+        const billNo = bill.day_bill_number?.toLowerCase() || '';
         if (!partyName.includes(query) && !billNo.includes(query)) return false;
       }
       return true;
@@ -131,6 +141,7 @@ export default function DriverDetailsScreen({ route, navigation }: any) {
         ) : (
           filteredBills.map((bill: any) => {
             const partyName = parties?.find((p: any) => p.id === bill.party_id)?.name || 'Unknown Party';
+            const itemName = items?.find((i: any) => i.id === bill.item_id)?.name;
             const isPurchase = bill._type === 'PURCHASE';
             
             const netWeight = isPurchase ? bill.net_weight : bill.weight;
@@ -149,7 +160,8 @@ export default function DriverDetailsScreen({ route, navigation }: any) {
                     <View className="flex-row items-center justify-between pr-2">
                       <Text className="font-bold text-gray-900 text-base flex-1" numberOfLines={1}>{partyName}</Text>
                     </View>
-                    {bill.bill_number && <Text className="text-[11px] text-gray-600 font-bold mt-0.5">{bill.bill_number}</Text>}
+                    {bill.day_bill_number && <Text className="text-[11px] text-gray-600 font-bold mt-0.5">{bill.day_bill_number}</Text>}
+                    {itemName ? <Text className="text-[11px] text-[#006948] font-bold mt-0.5">{itemName}</Text> : null}
                     <View className="flex-row items-center mt-0.5">
                       <Text className="text-[11px] text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded mr-2">{formatDateToDDMMYYYY(bill.date)}</Text>
                       <Text className="text-xs text-gray-500">{count} Birds ({netWeight}kg)</Text>
@@ -160,7 +172,7 @@ export default function DriverDetailsScreen({ route, navigation }: any) {
                   <Text className="text-[10px] text-gray-400 font-bold mb-0.5">{isPurchase ? 'PURCHASE' : 'SALE'}</Text>
                   {bill.balance_amount > 0 ? (
                     <View className="bg-red-50 px-2 py-0.5 rounded-md mt-1 border border-red-100">
-                       <Text className="text-[10px] text-red-600 font-bold tracking-wide">BAL ₹{bill.balance_amount.toLocaleString()}</Text>
+                       <Text className="text-[10px] text-red-600 font-bold tracking-wide">BAL ₹{formatAmount(bill.balance_amount)}</Text>
                     </View>
                   ) : (
                     <View className="bg-green-50 px-2 py-0.5 rounded-md mt-1 border border-green-100">

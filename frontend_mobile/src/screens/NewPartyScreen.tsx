@@ -17,6 +17,7 @@ export default function NewPartyScreen({ navigation }: any) {
     address: '',
     opening_balance: ''
   });
+  const [openingDirection, setOpeningDirection] = useState<'CR' | 'DR'>('CR');
   const [errors, setErrors] = useState<{name?: string, mobile?: string, address?: string, opening_balance?: string, generic?: string}>({});
 
   const mutation = useMutation({
@@ -62,13 +63,14 @@ export default function NewPartyScreen({ navigation }: any) {
       return;
     }
     setErrors({});
+    const amount = Math.abs(parseFloat(form.opening_balance) || 0);
     mutation.mutate({
       name: form.name,
       nickname: form.nickname,
       mobile: form.mobile,
       address: form.address,
       type: tab,
-      opening_balance: parseFloat(form.opening_balance) || 0
+      opening_balance: openingDirection === 'CR' ? amount : -amount
     });
   };
 
@@ -181,15 +183,28 @@ export default function NewPartyScreen({ navigation }: any) {
 
             <View>
               <Text className="text-xs font-medium text-gray-700 mb-1">Opening Balance (₹) *</Text>
+              <View className="flex-row gap-2 mb-2">
+                <TouchableOpacity
+                  onPress={() => setOpeningDirection('CR')}
+                  className={`flex-1 py-2 items-center rounded-md border ${openingDirection === 'CR' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
+                >
+                  <Text className={`text-sm font-semibold ${openingDirection === 'CR' ? 'text-white' : 'text-gray-600'}`}>CR</Text>
+                  <Text className={`text-[10px] ${openingDirection === 'CR' ? 'text-green-100' : 'text-gray-400'}`}>To Pay</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setOpeningDirection('DR')}
+                  className={`flex-1 py-2 items-center rounded-md border ${openingDirection === 'DR' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
+                >
+                  <Text className={`text-sm font-semibold ${openingDirection === 'DR' ? 'text-white' : 'text-gray-600'}`}>DR</Text>
+                  <Text className={`text-[10px] ${openingDirection === 'DR' ? 'text-green-100' : 'text-gray-400'}`}>To Receive</Text>
+                </TouchableOpacity>
+              </View>
               <TextInput 
                 placeholder="0.00"
                 keyboardType="numeric"
                 value={form.opening_balance}
                 onChangeText={(v) => {
-                  let formatted = v.replace(/[^0-9.-]/g, '');
-                  if (formatted.lastIndexOf('-') > 0) {
-                      formatted = formatted.replace(/(?!^)-/g, '');
-                  }
+                  const formatted = v.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                   setForm({...form, opening_balance: formatted});
                 }}
                 className={`w-full px-3 py-2.5 bg-white border ${errors.opening_balance ? 'border-red-500' : 'border-gray-300'} rounded-md text-sm`}
@@ -197,7 +212,7 @@ export default function NewPartyScreen({ navigation }: any) {
               {errors.opening_balance ? (
                 <Text className="text-red-500 text-xs mt-1">{errors.opening_balance}</Text>
               ) : (
-                <Text className="text-gray-500 text-xs mt-1">Enter e.g. -100 if you need to receive, or 100 if you need to pay</Text>
+                <Text className="text-gray-500 text-xs mt-1">CR = To Pay, DR = To Receive</Text>
               )}
             </View>
           </View>

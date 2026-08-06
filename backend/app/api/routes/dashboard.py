@@ -9,7 +9,6 @@ from app.models.sale import Sale
 from app.models.expense import Expense
 from app.models.stock_override import StockOverride
 from app.models.party import Party
-from app.models.enums import PartyType
 from datetime import datetime
 from typing import List
 from pydantic import UUID4
@@ -123,8 +122,9 @@ async def get_dashboard_stats(
     parties_result = await db.execute(select(Party))
     parties = parties_result.scalars().all()
     
-    purchaser_dues = sum(p.current_balance for p in parties if p.type == PartyType.PURCHASER)
-    supplier_payables = sum(p.current_balance for p in parties if p.type == PartyType.SUPPLIER)
+    # Signed ledger: positive = To Pay (CR), negative = To Receive (DR)
+    purchaser_dues = sum(abs(float(p.current_balance)) for p in parties if float(p.current_balance) < 0)
+    supplier_payables = sum(float(p.current_balance) for p in parties if float(p.current_balance) > 0)
 
     return DashboardStats(
         total_sales=total_sales,

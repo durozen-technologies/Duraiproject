@@ -285,10 +285,6 @@ export default function NewSaleScreen({ navigation, route }: any) {
         </View>
         {editData && !isEditing && (
           <TouchableOpacity onPress={() => {
-            if (editData?.total_invoice_amount !== editData?.balance_amount) {
-              setErrorMsg("Cannot edit or delete this bill because a collection payment is applied. Please delete the collection payment first.");
-              return;
-            }
             setIsEditing(true);
           }} className="bg-gray-100 px-3 py-1.5 rounded-full flex-row items-center">
             <Pencil color="#374151" size={14} className="mr-1" />

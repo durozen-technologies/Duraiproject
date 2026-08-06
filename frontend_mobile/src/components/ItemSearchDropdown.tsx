@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, TextInput, TouchableOpacity, Text, ScrollView, Platform } from 'react-native';
-import { Search, X } from 'lucide-react-native';
+import { ChevronDown, X } from 'lucide-react-native';
 
-export default function ItemSearchDropdown({ items, value, onSelect, placeholder, error }: any) {
+export default function ItemSearchDropdown({ items, value, onSelect, placeholder, error, onDropdownOpen }: any) {
   const [searchText, setSearchText] = useState('');
   const [isFocused, setIsFocused] = useState(false);
 
@@ -25,17 +25,22 @@ export default function ItemSearchDropdown({ items, value, onSelect, placeholder
   // Always show list when focused so they can just pick
   const showList = isFocused && !value;
 
+  useEffect(() => {
+    if (onDropdownOpen) {
+      onDropdownOpen(showList);
+    }
+  }, [showList]);
+
   return (
-    <View className="w-full relative z-50">
-      <View className={`w-full bg-white border ${error ? 'border-red-500' : (isFocused ? 'border-[#006948]' : 'border-gray-300')} rounded-md min-h-[50px] flex-row items-center px-3`}>
-        <Search color="#9ca3af" size={18} className="mr-2" />
+    <View className="w-full relative z-[100]">
+      <View className={`w-full bg-white border ${error ? 'border-red-500' : (isFocused ? 'border-[#0b4d3a]' : 'border-[#d8e0dc]')} rounded px-2 h-10 flex-row items-center`}>
         <TextInput
-          className="flex-1 text-sm py-3"
-          placeholder={placeholder || "Select Item"}
+          className={`flex-1 text-sm ${value ? 'font-bold' : ''} text-gray-800 p-0 m-0 bg-transparent outline-none`}
+          placeholder={placeholder || "Select..."}
           value={searchText}
           onFocus={() => setIsFocused(true)}
           onBlur={() => {
-            setTimeout(() => setIsFocused(false), 200);
+            setTimeout(() => setIsFocused(false), 400);
           }}
           onChangeText={(text) => {
             setSearchText(text);
@@ -43,29 +48,37 @@ export default function ItemSearchDropdown({ items, value, onSelect, placeholder
               onSelect('');
             }
           }}
+          style={{ outline: 'none' } as any}
         />
-        {searchText.length > 0 && (
-          <TouchableOpacity onPress={() => { setSearchText(''); onSelect(''); }}>
-            <X color="#9ca3af" size={18} />
+        {searchText.length > 0 ? (
+          <TouchableOpacity onPress={() => { setSearchText(''); onSelect(''); }} className="ml-1 p-0.5">
+            <X color="#9ca3af" size={14} />
           </TouchableOpacity>
+        ) : (
+          <View className="ml-1 pointer-events-none">
+            <ChevronDown color="#9ca3af" size={14} />
+          </View>
         )}
       </View>
       
       {showList && filteredItems && filteredItems.length > 0 && (
-        <View className="bg-white border border-gray-200 rounded-md mt-1 max-h-48 overflow-hidden shadow-sm" style={Platform.OS === 'ios' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3 } : { elevation: 3 }}>
+        <View 
+          className="absolute top-full left-0 w-full bg-white border border-gray-300 rounded-sm mt-[2px] max-h-48 shadow-lg z-[100]" 
+          style={Platform.OS === 'ios' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6 } : { elevation: 5 }}
+        >
           <ScrollView nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
             {filteredItems.map((item: any) => (
               <TouchableOpacity 
                 key={item.id}
-                className="px-4 py-3 border-b border-gray-100 active:bg-gray-50 flex-row justify-between items-center"
+                className="px-3 py-2 border-b border-gray-100 hover:bg-[#f4f7f5] active:bg-[#e8f3ee] flex-row justify-between items-center"
                 onPress={() => {
                   setSearchText(item.name);
                   onSelect(item.id);
                   setIsFocused(false);
                 }}
               >
-                <View>
-                  <Text className="text-sm font-medium text-gray-800">{item.name}</Text>
+                <View className="flex-1">
+                  <Text className="text-xs font-medium text-gray-800" numberOfLines={1}>{item.name}</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -74,8 +87,8 @@ export default function ItemSearchDropdown({ items, value, onSelect, placeholder
       )}
       
       {showList && filteredItems && filteredItems.length === 0 && (
-        <View className="bg-white border border-gray-200 rounded-md mt-1 p-3">
-          <Text className="text-sm text-gray-500 text-center">No matching items found</Text>
+        <View className="absolute top-full left-0 w-full bg-white border border-gray-300 rounded-sm mt-[2px] p-2 shadow-lg z-[100]" style={{ elevation: 5 }}>
+          <Text className="text-xs text-gray-500 text-center">No matches</Text>
         </View>
       )}
     </View>

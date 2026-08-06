@@ -22,6 +22,33 @@ from reportlab.lib.units import inch
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
+
+def _fmt_inr(amount: float) -> str:
+    """Indian grouping with 2 decimals, e.g. 1,02,000.00"""
+    n = float(amount or 0)
+    sign = "-" if n < 0 else ""
+    n = abs(n)
+    whole, frac = f"{n:.2f}".split(".")
+    if len(whole) <= 3:
+        grouped = whole
+    else:
+        last3 = whole[-3:]
+        rest = whole[:-3]
+        parts = []
+        while rest:
+            parts.append(rest[-2:])
+            rest = rest[:-2]
+        grouped = ",".join(reversed(parts)) + "," + last3
+    return f"{sign}{grouped}.{frac}"
+
+
+def _fmt_weight(value: float) -> str:
+    return f"{float(value or 0):.2f}"
+
+
+def _fmt_rate(value: float) -> str:
+    return f"Rs.{_fmt_inr(value)}"
+
 @router.get("/purchases")
 async def generate_purchase_report(
     from_date: date,
@@ -304,4 +331,345 @@ async def generate_sale_report(
         buffer,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=sale_report_{from_date.strftime('%Y%m%d')}_{to_date.strftime('%Y%m%d')}.pdf"}
+    )
+
+
+@router.get("/party-ledger")
+async def generate_party_ledger_report(
+    party_id: UUID,
+    from_date: date,
+    to_date: date,
+    db: AsyncSession = Depends(get_db),
+):
+    """Party Ledger PDF matching Partystatement.html layout."""
+    party_result = await db.execute(select(Party).where(Party.id == party_id))
+    party = party_result.scalar_one_or_none()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+
+    purchases_result = await db.execute(
+        select(Purchase)
+        .where(
+            and_(
+                Purchase.party_id == party_id,
+                Purchase.date >= from_date,
+                Purchase.date <= to_date,
+            )
+        )
+        .order_by(Purchase.date.asc(), Purchase.created_at.asc())
+    )
+    purchases = purchases_result.scalars().all()
+
+    sales_result = await db.execute(
+        select(Sale)
+        .where(
+            and_(
+                Sale.party_id == party_id,
+                Sale.date >= from_date,
+                Sale.date <= to_date,
+            )
+        )
+        .order_by(Sale.date.asc(), Sale.created_at.asc())
+    )
+    sales = sales_result.scalars().all()
+
+    rows: list[dict] = []
+    for p in purchases:
+        rows.append(
+            {
+                "date": p.date,
+                "kind": "Purchase",
+                "net_weight": float(p.net_weight or 0),
+                "rate": float(p.purchase_rate or 0),
+                "credit": float(p.purchase_amount or 0),
+                "debit": 0.0,
+                "sort_key": (p.date, 0, str(p.id)),
+            }
+        )
+    for s in sales:
+        rows.append(
+            {
+                "date": s.date,
+                "kind": "Sale",
+                "net_weight": float(s.weight or 0),
+                "rate": float(s.weight_rate or 0),
+                "credit": 0.0,
+                "debit": float(s.total_invoice_amount or 0),
+                "sort_key": (s.date, 1, str(s.id)),
+            }
+        )
+    rows.sort(key=lambda r: r["sort_key"])
+
+    total_credit = sum(r["credit"] for r in rows)
+    total_debit = sum(r["debit"] for r in rows)
+    difference = total_credit - total_debit
+    closing_suffix = "Cr" if difference >= 0 else "Dr"
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "PartyLedgerTitle",
+        parent=styles["Heading1"],
+        alignment=1,
+        fontSize=22,
+        spaceAfter=4,
+    )
+    subtitle_style = ParagraphStyle(
+        "PartyLedgerSubtitle",
+        parent=styles["Normal"],
+        alignment=1,
+        fontSize=12,
+        textColor=colors.HexColor("#666666"),
+        spaceAfter=4,
+    )
+    range_style = ParagraphStyle(
+        "PartyLedgerRange",
+        parent=styles["Normal"],
+        alignment=1,
+        fontSize=11,
+        textColor=colors.HexColor("#444444"),
+        spaceAfter=16,
+    )
+
+    elements = []
+    elements.append(Paragraph(party.name.upper(), title_style))
+    elements.append(Paragraph("Party Ledger Statement", subtitle_style))
+    elements.append(
+        Paragraph(
+            f"{from_date.strftime('%d-%m-%Y')} to {to_date.strftime('%d-%m-%Y')}",
+            range_style,
+        )
+    )
+
+    table_data = [
+        ["Date", "Type", "Net Weight (Kg)", "Rate", "Credit (Rs.)", "Debit (Rs.)"]
+    ]
+
+    green = colors.HexColor("#0b8b32")
+    red = colors.HexColor("#d10000")
+
+    for r in rows:
+        is_purchase = r["kind"] == "Purchase"
+        credit_cell = f"Rs.{_fmt_inr(r['credit'])}" if is_purchase else "-"
+        debit_cell = f"Rs.{_fmt_inr(r['debit'])}" if not is_purchase else "-"
+        table_data.append(
+            [
+                r["date"].strftime("%d-%m-%Y") if r["date"] else "-",
+                r["kind"],
+                _fmt_weight(r["net_weight"]),
+                _fmt_rate(r["rate"]),
+                credit_cell,
+                debit_cell,
+            ]
+        )
+
+    usable_width = A4[0] - 72
+    col_widths = [
+        usable_width * 0.15,
+        usable_width * 0.15,
+        usable_width * 0.18,
+        usable_width * 0.12,
+        usable_width * 0.20,
+        usable_width * 0.20,
+    ]
+
+    ledger_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    style_cmds = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ececec")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 10),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 9),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cfcfcf")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cfcfcf")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafafa")]),
+    ]
+    for i, r in enumerate(rows, start=1):
+        if r["kind"] == "Purchase":
+            style_cmds.append(("TEXTCOLOR", (1, i), (1, i), green))
+            style_cmds.append(("FONTNAME", (1, i), (1, i), "Helvetica-Bold"))
+            style_cmds.append(("TEXTCOLOR", (4, i), (4, i), green))
+            style_cmds.append(("FONTNAME", (4, i), (4, i), "Helvetica-Bold"))
+        else:
+            style_cmds.append(("TEXTCOLOR", (1, i), (1, i), red))
+            style_cmds.append(("FONTNAME", (1, i), (1, i), "Helvetica-Bold"))
+            style_cmds.append(("TEXTCOLOR", (5, i), (5, i), red))
+            style_cmds.append(("FONTNAME", (5, i), (5, i), "Helvetica-Bold"))
+
+    ledger_table.setStyle(TableStyle(style_cmds))
+    elements.append(ledger_table)
+    elements.append(Spacer(1, 20))
+
+    summary_data = [
+        ["Total Credit", f"Rs.{_fmt_inr(total_credit)}"],
+        ["Total Debit", f"Rs.{_fmt_inr(total_debit)}"],
+        ["Difference (Credit - Debit)", f"Rs.{_fmt_inr(difference)}"],
+        ["Closing Balance", f"Rs.{_fmt_inr(abs(difference))} {closing_suffix}"],
+    ]
+    summary_table = Table(summary_data, colWidths=[usable_width * 0.35, usable_width * 0.25])
+    summary_table.hAlign = "RIGHT"
+    summary_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, 2), colors.HexColor("#efefef")),
+                ("BACKGROUND", (0, 3), (-1, 3), colors.HexColor("#d9edf7")),
+                ("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#f8f8f8")),
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 2), 10),
+                ("FONTSIZE", (0, 3), (-1, 3), 12),
+                ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cfcfcf")),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cfcfcf")),
+            ]
+        )
+    )
+    elements.append(summary_table)
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in party.name)[:40]
+    filename = f"party_ledger_{safe_name}_{from_date.strftime('%Y%m%d')}_{to_date.strftime('%Y%m%d')}.pdf"
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/parties-balance-sheet")
+async def generate_parties_balance_sheet(
+    db: AsyncSession = Depends(get_db),
+):
+    """All-parties Balance Sheet PDF: Party Name | Credit (To Pay) | Debit (To Receive)."""
+    from datetime import datetime as dt
+
+    result = await db.execute(
+        select(Party).where(Party.is_active == True).order_by(Party.name.asc())  # noqa: E712
+    )
+    parties = result.scalars().all()
+
+    generated_on = dt.now().strftime("%d-%m-%Y")
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "BalanceSheetTitle",
+        parent=styles["Heading1"],
+        alignment=1,
+        fontSize=22,
+        spaceAfter=6,
+    )
+    date_style = ParagraphStyle(
+        "BalanceSheetDate",
+        parent=styles["Normal"],
+        alignment=1,
+        fontSize=11,
+        textColor=colors.HexColor("#555555"),
+        spaceAfter=18,
+    )
+
+    elements = []
+    elements.append(Paragraph("Balance Sheet", title_style))
+    elements.append(Paragraph(f"Generate Date: {generated_on}", date_style))
+
+    table_data = [["Party Name", "Credit (To Pay)", "Debit (To Receive)"]]
+    total_credit = 0.0
+    total_debit = 0.0
+
+    for party in parties:
+        bal = float(party.current_balance or 0)
+        if bal > 0:
+            credit = bal
+            debit = 0.0
+            credit_cell = f"Rs.{_fmt_inr(credit)}"
+            debit_cell = "-"
+        elif bal < 0:
+            credit = 0.0
+            debit = abs(bal)
+            credit_cell = "-"
+            debit_cell = f"Rs.{_fmt_inr(debit)}"
+        else:
+            credit = 0.0
+            debit = 0.0
+            credit_cell = "-"
+            debit_cell = "-"
+
+        total_credit += credit
+        total_debit += debit
+        table_data.append([party.name, credit_cell, debit_cell])
+
+    table_data.append(
+        [
+            "Total",
+            f"Rs.{_fmt_inr(total_credit)}",
+            f"Rs.{_fmt_inr(total_debit)}",
+        ]
+    )
+
+    usable_width = A4[0] - 72
+    col_widths = [usable_width * 0.46, usable_width * 0.27, usable_width * 0.27]
+    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    last_row = len(table_data) - 1
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ececec")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 11),
+                ("FONTNAME", (0, 1), (-1, last_row - 1), "Helvetica"),
+                ("FONTSIZE", (0, 1), (-1, -1), 10),
+                ("FONTNAME", (0, last_row), (-1, last_row), "Helvetica-Bold"),
+                ("BACKGROUND", (0, last_row), (-1, last_row), colors.HexColor("#f0f4f2")),
+                ("ALIGN", (0, 0), (0, -1), "LEFT"),
+                ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cfcfcf")),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cfcfcf")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, last_row - 1), [colors.white, colors.HexColor("#fafafa")]),
+            ]
+        )
+    )
+    elements.append(table)
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    filename = f"parties_balance_sheet_{dt.now().strftime('%Y%m%d')}.pdf"
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

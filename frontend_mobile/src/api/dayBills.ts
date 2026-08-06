@@ -78,9 +78,82 @@ export interface DayBillListItem {
   expense_total: number;
 }
 
+export interface DayBillDetail extends DayBillListItem {
+  purchases: {
+    id: string;
+    bill_number: string;
+    party_id?: string | null;
+    item_id?: string | null;
+    driver_id?: string | null;
+    party_name: string;
+    item_name: string;
+    driver_name: string;
+    driver_mobile: string;
+    vehicle_number: string;
+    total_boxes: number;
+    birds_per_box: number;
+    actual_birds: number;
+    weighbridge_weight: number;
+    net_weight: number;
+    purchase_rate: number;
+    purchase_amount: number;
+    cash_payment: number;
+    upi_payment: number;
+    bank_payment: number;
+    balance_amount: number;
+    remarks?: string;
+  }[];
+  sales: {
+    id: string;
+    bill_number: string;
+    party_id?: string | null;
+    item_id?: string | null;
+    driver_id?: string | null;
+    party_name: string;
+    item_name: string;
+    driver_name: string;
+    driver_mobile: string;
+    vehicle_number: string;
+    boxes: number;
+    birds_per_box: number;
+    actual_birds: number;
+    weighbridge_weight: number;
+    net_weight: number;
+    weight?: number;
+    weight_rate: number;
+    weight_amount?: number;
+    box_rate: number;
+    box_amount?: number;
+    total_invoice_amount: number;
+    cash_payment: number;
+    upi_payment: number;
+    bank_payment: number;
+    balance_amount: number;
+  }[];
+  expenses: {
+    id: string;
+    category_id?: string | null;
+    category_name: string;
+    expense_name: string;
+    cash_amount: number;
+    upi_amount: number;
+    total_amount: number;
+    note: string;
+  }[];
+}
+
 export async function createDayBill(payload: DayBillCreatePayload): Promise<DayBillListItem> {
   const response = await client.post('/day-bills/', payload);
   return response.data;
+}
+
+export async function updateDayBill(id: string, payload: DayBillCreatePayload): Promise<DayBillListItem> {
+  const response = await client.put(`/day-bills/${id}`, payload);
+  return response.data;
+}
+
+export async function deleteDayBill(id: string): Promise<void> {
+  await client.delete(`/day-bills/${id}`);
 }
 
 export async function fetchDayBills(params?: {
@@ -91,7 +164,7 @@ export async function fetchDayBills(params?: {
   return response.data;
 }
 
-export async function fetchDayBill(id: string): Promise<DayBillListItem> {
+export async function fetchDayBill(id: string): Promise<DayBillDetail> {
   const response = await client.get(`/day-bills/${id}`);
   return response.data;
 }

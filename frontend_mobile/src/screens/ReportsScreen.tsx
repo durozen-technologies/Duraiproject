@@ -17,6 +17,7 @@ export default function ReportsScreen() {
   const [showToPicker, setShowToPicker] = useState(false);
   const [selectedPartyId, setSelectedPartyId] = useState<string>('all');
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('all');
+  const [selectedLedgerPartyId, setSelectedLedgerPartyId] = useState<string>('');
   const [isDownloading, setIsDownloading] = useState(false);
 
   const { data: parties, isLoading } = useQuery({
@@ -29,6 +30,28 @@ export default function ReportsScreen() {
 
   const activePurchasers = parties?.filter((p: any) => (p.type === 'PURCHASER' || p.type === 'BOTH') && p.is_active) || [];
   const activeSuppliers = parties?.filter((p: any) => (p.type === 'SUPPLIER' || p.type === 'BOTH') && p.is_active) || [];
+  const activeParties = parties?.filter((p: any) => p.is_active) || [];
+
+  const openOrSharePdf = async (url: string, fileUri: string) => {
+    if (Platform.OS === 'web') {
+      window.open(url, '_blank');
+      return;
+    }
+    const downloadRes = await FileSystem.downloadAsync(url, fileUri);
+    if (Platform.OS === 'android') {
+      try {
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: downloadRes.uri,
+          flags: 1,
+          type: 'application/pdf',
+        });
+      } catch {
+        await Sharing.shareAsync(downloadRes.uri);
+      }
+    } else {
+      await Sharing.shareAsync(downloadRes.uri);
+    }
+  };
 
   const handleDownloadPurchaseReport = async () => {
     setIsDownloading(true);
@@ -40,28 +63,7 @@ export default function ReportsScreen() {
       if (selectedPartyId !== 'all') {
         url += `&party_id=${selectedPartyId}`;
       }
-
-      if (Platform.OS === 'web') {
-        window.open(url, '_blank');
-      } else {
-        const fileUri = `${FileSystem.documentDirectory}purchase_report_${fromStr}_${toStr}.pdf`;
-        
-        const downloadRes = await FileSystem.downloadAsync(url, fileUri);
-        
-        if (Platform.OS === 'android') {
-            try {
-                await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-                    data: downloadRes.uri,
-                    flags: 1,
-                    type: 'application/pdf'
-                });
-            } catch (e) {
-                await Sharing.shareAsync(downloadRes.uri);
-            }
-        } else {
-            await Sharing.shareAsync(downloadRes.uri);
-        }
-      }
+      await openOrSharePdf(url, `${FileSystem.documentDirectory}purchase_report_${fromStr}_${toStr}.pdf`);
     } catch (error) {
       console.error("Error downloading report:", error);
       alert("Failed to download report");
@@ -80,31 +82,30 @@ export default function ReportsScreen() {
       if (selectedSupplierId !== 'all') {
         url += `&party_id=${selectedSupplierId}`;
       }
-
-      if (Platform.OS === 'web') {
-        window.open(url, '_blank');
-      } else {
-        const fileUri = `${FileSystem.documentDirectory}sale_report_${fromStr}_${toStr}.pdf`;
-        
-        const downloadRes = await FileSystem.downloadAsync(url, fileUri);
-        
-        if (Platform.OS === 'android') {
-            try {
-                await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-                    data: downloadRes.uri,
-                    flags: 1,
-                    type: 'application/pdf'
-                });
-            } catch (e) {
-                await Sharing.shareAsync(downloadRes.uri);
-            }
-        } else {
-            await Sharing.shareAsync(downloadRes.uri);
-        }
-      }
+      await openOrSharePdf(url, `${FileSystem.documentDirectory}sale_report_${fromStr}_${toStr}.pdf`);
     } catch (error) {
       console.error("Error downloading report:", error);
       alert("Failed to download report");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleDownloadPartyLedger = async () => {
+    if (!selectedLedgerPartyId) {
+      alert('Please select a party');
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      const fromStr = fromDate.toISOString().split('T')[0];
+      const toStr = toDate.toISOString().split('T')[0];
+      const baseUrl = client.defaults.baseURL || 'http://localhost:8000/api';
+      const url = `${baseUrl}/reports/party-ledger?party_id=${selectedLedgerPartyId}&from_date=${fromStr}&to_date=${toStr}`;
+      await openOrSharePdf(url, `${FileSystem.documentDirectory}party_ledger_${fromStr}_${toStr}.pdf`);
+    } catch (error) {
+      console.error('Error downloading party ledger:', error);
+      alert('Failed to download party ledger');
     } finally {
       setIsDownloading(false);
     }
@@ -125,21 +126,41 @@ export default function ReportsScreen() {
           
           <Text className="text-sm font-medium text-gray-700 mb-1">Date Range</Text>
           <View className="flex-row space-x-2 mb-4">
-            <TouchableOpacity 
-              onPress={() => setShowFromPicker(true)}
-              className="flex-1 bg-gray-100 rounded-lg h-12 flex-row items-center justify-between px-3"
-            >
-              <Text className="text-gray-700">{fromDate.toISOString().split('T')[0]}</Text>
-              <CalendarIcon size={20} color="#6B7280" />
-            </TouchableOpacity>
+            {Platform.OS === 'web' ? (
+              <input
+                type="date"
+                className="flex-1 bg-gray-100 rounded-lg h-12 px-3 text-gray-700 border-none"
+                style={{ outline: 'none', backgroundColor: '#f3f4f6' }}
+                value={fromDate.toISOString().split('T')[0]}
+                onChange={(e) => { if (e.target.value) setFromDate(new Date(e.target.value)); }}
+              />
+            ) : (
+              <TouchableOpacity 
+                onPress={() => setShowFromPicker(true)}
+                className="flex-1 bg-gray-100 rounded-lg h-12 flex-row items-center justify-between px-3"
+              >
+                <Text className="text-gray-700">{fromDate.toISOString().split('T')[0]}</Text>
+                <CalendarIcon size={20} color="#6B7280" />
+              </TouchableOpacity>
+            )}
             
-            <TouchableOpacity 
-              onPress={() => setShowToPicker(true)}
-              className="flex-1 bg-gray-100 rounded-lg h-12 flex-row items-center justify-between px-3"
-            >
-              <Text className="text-gray-700">{toDate.toISOString().split('T')[0]}</Text>
-              <CalendarIcon size={20} color="#6B7280" />
-            </TouchableOpacity>
+            {Platform.OS === 'web' ? (
+              <input
+                type="date"
+                className="flex-1 bg-gray-100 rounded-lg h-12 px-3 text-gray-700 border-none"
+                style={{ outline: 'none', backgroundColor: '#f3f4f6' }}
+                value={toDate.toISOString().split('T')[0]}
+                onChange={(e) => { if (e.target.value) setToDate(new Date(e.target.value)); }}
+              />
+            ) : (
+              <TouchableOpacity 
+                onPress={() => setShowToPicker(true)}
+                className="flex-1 bg-gray-100 rounded-lg h-12 flex-row items-center justify-between px-3"
+              >
+                <Text className="text-gray-700">{toDate.toISOString().split('T')[0]}</Text>
+                <CalendarIcon size={20} color="#6B7280" />
+              </TouchableOpacity>
+            )}
           </View>
           
           <Text className="text-sm font-medium text-gray-700 mb-1">Select Purchaser</Text>
@@ -176,7 +197,7 @@ export default function ReportsScreen() {
           </TouchableOpacity>
         </View>
 
-        <View className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-20">
+        <View className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
           <View className="flex-row items-center mb-4">
             <FileText color="#006948" size={24} className="mr-2" />
             <Text className="text-lg font-bold text-gray-900">Sale Report</Text>
@@ -184,21 +205,41 @@ export default function ReportsScreen() {
 
           <Text className="text-sm font-medium text-gray-700 mb-1">Date Range</Text>
           <View className="flex-row space-x-2 mb-4">
-            <TouchableOpacity 
-              onPress={() => setShowFromPicker(true)}
-              className="flex-1 bg-gray-100 rounded-lg h-12 flex-row items-center justify-between px-3"
-            >
-              <Text className="text-gray-700">{fromDate.toISOString().split('T')[0]}</Text>
-              <CalendarIcon size={20} color="#6B7280" />
-            </TouchableOpacity>
+            {Platform.OS === 'web' ? (
+              <input
+                type="date"
+                className="flex-1 bg-gray-100 rounded-lg h-12 px-3 text-gray-700 border-none"
+                style={{ outline: 'none', backgroundColor: '#f3f4f6' }}
+                value={fromDate.toISOString().split('T')[0]}
+                onChange={(e) => { if (e.target.value) setFromDate(new Date(e.target.value)); }}
+              />
+            ) : (
+              <TouchableOpacity 
+                onPress={() => setShowFromPicker(true)}
+                className="flex-1 bg-gray-100 rounded-lg h-12 flex-row items-center justify-between px-3"
+              >
+                <Text className="text-gray-700">{fromDate.toISOString().split('T')[0]}</Text>
+                <CalendarIcon size={20} color="#6B7280" />
+              </TouchableOpacity>
+            )}
             
-            <TouchableOpacity 
-              onPress={() => setShowToPicker(true)}
-              className="flex-1 bg-gray-100 rounded-lg h-12 flex-row items-center justify-between px-3"
-            >
-              <Text className="text-gray-700">{toDate.toISOString().split('T')[0]}</Text>
-              <CalendarIcon size={20} color="#6B7280" />
-            </TouchableOpacity>
+            {Platform.OS === 'web' ? (
+              <input
+                type="date"
+                className="flex-1 bg-gray-100 rounded-lg h-12 px-3 text-gray-700 border-none"
+                style={{ outline: 'none', backgroundColor: '#f3f4f6' }}
+                value={toDate.toISOString().split('T')[0]}
+                onChange={(e) => { if (e.target.value) setToDate(new Date(e.target.value)); }}
+              />
+            ) : (
+              <TouchableOpacity 
+                onPress={() => setShowToPicker(true)}
+                className="flex-1 bg-gray-100 rounded-lg h-12 flex-row items-center justify-between px-3"
+              >
+                <Text className="text-gray-700">{toDate.toISOString().split('T')[0]}</Text>
+                <CalendarIcon size={20} color="#6B7280" />
+              </TouchableOpacity>
+            )}
           </View>
           
           <Text className="text-sm font-medium text-gray-700 mb-1">Select Supplier</Text>
@@ -235,6 +276,87 @@ export default function ReportsScreen() {
           </TouchableOpacity>
         </View>
 
+        <View className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-20">
+          <View className="flex-row items-center mb-4">
+            <FileText color="#006948" size={24} className="mr-2" />
+            <Text className="text-lg font-bold text-gray-900">Party Ledger Report</Text>
+          </View>
+
+          <Text className="text-sm font-medium text-gray-700 mb-1">Date Range</Text>
+          <View className="flex-row space-x-2 mb-4">
+            {Platform.OS === 'web' ? (
+              <input
+                type="date"
+                className="flex-1 bg-gray-100 rounded-lg h-12 px-3 text-gray-700 border-none"
+                style={{ outline: 'none', backgroundColor: '#f3f4f6' }}
+                value={fromDate.toISOString().split('T')[0]}
+                onChange={(e) => { if (e.target.value) setFromDate(new Date(e.target.value)); }}
+              />
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowFromPicker(true)}
+                className="flex-1 bg-gray-100 rounded-lg h-12 flex-row items-center justify-between px-3"
+              >
+                <Text className="text-gray-700">{fromDate.toISOString().split('T')[0]}</Text>
+                <CalendarIcon size={20} color="#6B7280" />
+              </TouchableOpacity>
+            )}
+
+            {Platform.OS === 'web' ? (
+              <input
+                type="date"
+                className="flex-1 bg-gray-100 rounded-lg h-12 px-3 text-gray-700 border-none"
+                style={{ outline: 'none', backgroundColor: '#f3f4f6' }}
+                value={toDate.toISOString().split('T')[0]}
+                onChange={(e) => { if (e.target.value) setToDate(new Date(e.target.value)); }}
+              />
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowToPicker(true)}
+                className="flex-1 bg-gray-100 rounded-lg h-12 flex-row items-center justify-between px-3"
+              >
+                <Text className="text-gray-700">{toDate.toISOString().split('T')[0]}</Text>
+                <CalendarIcon size={20} color="#6B7280" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <Text className="text-sm font-medium text-gray-700 mb-1">Select Party</Text>
+          <View className="bg-gray-100 rounded-lg mb-6 border border-gray-200 justify-center">
+            {isLoading ? (
+              <ActivityIndicator className="p-3" color="#006948" />
+            ) : (
+              <Picker
+                selectedValue={selectedLedgerPartyId}
+                onValueChange={(itemValue) => setSelectedLedgerPartyId(itemValue)}
+                style={{ height: 50 }}
+              >
+                <Picker.Item label="Select a party..." value="" style={{ fontSize: 15 }} />
+                {activeParties.map((p: any) => (
+                  <Picker.Item key={p.id} label={p.name} value={p.id} style={{ fontSize: 15 }} />
+                ))}
+              </Picker>
+            )}
+          </View>
+
+          <TouchableOpacity
+            onPress={handleDownloadPartyLedger}
+            disabled={isDownloading || !selectedLedgerPartyId}
+            className={`h-12 rounded-lg flex-row items-center justify-center space-x-2 ${
+              isDownloading || !selectedLedgerPartyId ? 'bg-emerald-400' : 'bg-[#006948]'
+            }`}
+          >
+            {isDownloading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <>
+                <Download color="white" size={20} />
+                <Text className="text-white font-bold text-lg">Download PDF</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
       </ScrollView>
 
       {showFromPicker && (
@@ -242,11 +364,10 @@ export default function ReportsScreen() {
           value={fromDate}
           mode="date"
           display="default"
-          onValueChange={(event, date) => {
+          onChange={(event: any, date?: Date) => {
             setShowFromPicker(Platform.OS === 'ios');
             if (date) setFromDate(date);
           }}
-          onDismiss={() => setShowFromPicker(false)}
         />
       )}
       
@@ -255,11 +376,10 @@ export default function ReportsScreen() {
           value={toDate}
           mode="date"
           display="default"
-          onValueChange={(event, date) => {
+          onChange={(event: any, date?: Date) => {
             setShowToPicker(Platform.OS === 'ios');
             if (date) setToDate(date);
           }}
-          onDismiss={() => setShowToPicker(false)}
         />
       )}
     </SafeAreaView>

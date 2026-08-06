@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Party Ledger Report</title>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial, Helvetica, sans-serif;
+}
+
+body{
+    background:#f4f4f4;
+    padding:30px;
+}
+
+.container{
+    max-width:1050px;
+    margin:auto;
+    background:#fff;
+    border:1px solid #ccc;
+    padding:25px;
+}
+
+.header{
+    text-align:center;
+    margin-bottom:25px;
+}
+
+.header h1{
+    font-size:30px;
+    letter-spacing:1px;
+    margin-bottom:5px;
+}
+
+.header p{
+    color:#666;
+    font-size:15px;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+thead th{
+    background:#ececec;
+    border:1px solid #cfcfcf;
+    padding:12px;
+    text-align:center;
+    font-size:16px;
+}
+
+tbody td{
+    border:1px solid #dcdcdc;
+    padding:11px;
+    text-align:center;
+    font-size:15px;
+}
+
+tbody tr:nth-child(even){
+    background:#fafafa;
+}
+
+.purchase{
+    color:#0b8b32;
+    font-weight:bold;
+}
+
+.sale{
+    color:#d10000;
+    font-weight:bold;
+}
+
+.credit{
+    color:#0b8b32;
+    font-weight:bold;
+}
+
+.debit{
+    color:#d10000;
+    font-weight:bold;
+}
+
+tfoot td{
+    border:1px solid #cfcfcf;
+    padding:12px;
+    font-weight:bold;
+}
+
+.summary{
+    width:420px;
+    margin-left:auto;
+    margin-top:25px;
+    border-collapse:collapse;
+}
+
+.summary td{
+    border:1px solid #cfcfcf;
+    padding:12px;
+    font-size:16px;
+}
+
+.summary .title{
+    background:#efefef;
+    font-weight:bold;
+}
+
+.summary .value{
+    text-align:right;
+    font-weight:bold;
+}
+
+.summary .closing{
+    background:#d9edf7;
+    font-size:18px;
+}
+
+.summary .difference{
+    background:#f8f8f8;
+}
+
+@media print{
+
+    body{
+        background:white;
+        padding:0;
+    }
+
+    .container{
+        border:none;
+        width:100%;
+        box-shadow:none;
+    }
+
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="header">
+        <h1>PRATHAP</h1>
+        <p>Party Ledger Statement</p>
+    </div>
+
+    <table>
+
+        <thead>
+
+        <tr>
+            <th width="15%">Date</th>
+            <th width="15%">Type</th>
+            <th width="18%">Net Weight (Kg)</th>
+            <th width="12%">Rate</th>
+            <th width="20%">Credit (₹)</th>
+            <th width="20%">Debit (₹)</th>
+        </tr>
+
+        </thead>
+
+        <tbody>
+
+        <tr>
+            <td>05-08-2026</td>
+            <td class="purchase">Purchase</td>
+            <td>850.00</td>
+            <td>₹120</td>
+            <td class="credit">₹102,000.00</td>
+            <td>-</td>
+        </tr>
+
+        <tr>
+            <td>06-08-2026</td>
+            <td class="sale">Sale</td>
+            <td>500.00</td>
+            <td>₹130</td>
+            <td>-</td>
+            <td class="debit">₹65,000.00</td>
+        </tr>
+
+        <tr>
+            <td>06-08-2026</td>
+            <td class="sale">Sale</td>
+            <td>300.00</td>
+            <td>₹132</td>
+            <td>-</td>
+            <td class="debit">₹39,600.00</td>
+        </tr>
+
+        <tr>
+            <td>07-08-2026</td>
+            <td class="purchase">Purchase</td>
+            <td>250.00</td>
+            <td>₹118</td>
+            <td class="credit">₹29,500.00</td>
+            <td>-</td>
+        </tr>
+
+        </tbody>
+
+    </table>
+
+
+    <!-- Summary -->
+
+    <table class="summary">
+
+        <tr>
+            <td class="title">Total Credit</td>
+            <td class="value">₹131,500.00</td>
+        </tr>
+
+        <tr>
+            <td class="title">Total Debit</td>
+            <td class="value">₹104,600.00</td>
+        </tr>
+
+        <tr class="difference">
+            <td class="title">Difference (Credit - Debit)</td>
+            <td class="value">₹26,900.00</td>
+        </tr>
+
+        <tr class="closing">
+            <td class="title">Closing Balance</td>
+            <td class="value">₹26,900.00 <strong>Cr</strong></td>
+        </tr>
+
+    </table>
+
+</div>
+
+</body>
+</html>

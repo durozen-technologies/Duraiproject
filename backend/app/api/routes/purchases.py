@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from pydantic import BaseModel, UUID4
 from datetime import datetime, date as datetime_date
@@ -40,6 +41,8 @@ class PurchaseResponse(PurchaseBase):
     id: UUID4
     date: datetime_date
     bill_number: Optional[str] = None
+    day_bill_id: Optional[UUID4] = None
+    day_bill_number: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -55,36 +58,11 @@ async def create_purchase(purchase_in: PurchaseCreate, db: AsyncSession = Depend
         raise HTTPException(status_code=404, detail="Party not found")
         
     purchase_date = purchase_in.date or datetime_date.today()
-    
-    if purchase_date.month >= 4:
-        fy_year = purchase_date.year
-    else:
-        fy_year = purchase_date.year - 1
-        
-    prefix = f"PUR-{fy_year}-"
-    
-    bill_query = await db.execute(
-        select(Purchase.bill_number)
-        .where(Purchase.bill_number.like(f"{prefix}%"))
-        .order_by(Purchase.bill_number.desc())
-        .limit(1)
-    )
-    last_bill = bill_query.scalar_one_or_none()
-    
-    if last_bill:
-        try:
-            seq = int(last_bill.split("-")[-1]) + 1
-        except ValueError:
-            seq = 1
-    else:
-        seq = 1
-        
-    new_bill_number = f"{prefix}{seq:06d}"
 
     db_purchase = Purchase(
         party_id=purchase_in.party_id,
         date=purchase_date,
-        bill_number=new_bill_number,
+        bill_number=None,
         vehicle_number=purchase_in.vehicle_number,
         driver_name=purchase_in.driver_name,
         driver_id=purchase_in.driver_id,
@@ -126,12 +104,30 @@ async def create_purchase(purchase_in: PurchaseCreate, db: AsyncSession = Depend
     return db_purchase
 
 @router.get("/", response_model=List[PurchaseResponse])
-async def get_purchases(driver_id: Optional[UUID4] = None, db: AsyncSession = Depends(deps.get_db)):
-    query = select(Purchase).order_by(Purchase.date.desc())
+async def get_purchases(
+    driver_id: Optional[UUID4] = None,
+    party_id: Optional[UUID4] = None,
+    from_date: Optional[datetime_date] = Query(default=None),
+    to_date: Optional[datetime_date] = Query(default=None),
+    db: AsyncSession = Depends(deps.get_db),
+):
+    query = select(Purchase).options(selectinload(Purchase.day_bill)).order_by(Purchase.date.desc())
     if driver_id:
         query = query.where(Purchase.driver_id == driver_id)
+    if party_id:
+        query = query.where(Purchase.party_id == party_id)
+    if from_date:
+        query = query.where(Purchase.date >= from_date)
+    if to_date:
+        query = query.where(Purchase.date <= to_date)
     result = await db.execute(query)
-    return result.scalars().all()
+    rows = result.scalars().all()
+    payload = []
+    for row in rows:
+        data = PurchaseResponse.model_validate(row).model_dump()
+        data["day_bill_number"] = row.day_bill.bill_number if row.day_bill else None
+        payload.append(data)
+    return payload
 
 @router.put("/{purchase_id}", response_model=PurchaseResponse)
 async def update_purchase(purchase_id: UUID4, purchase_in: PurchaseUpdate, db: AsyncSession = Depends(deps.get_db)):
@@ -139,9 +135,6 @@ async def update_purchase(purchase_id: UUID4, purchase_in: PurchaseUpdate, db: A
     db_purchase = result.scalar_one_or_none()
     if not db_purchase:
         raise HTTPException(status_code=404, detail="Purchase not found")
-        
-    if db_purchase.is_locked:
-        raise HTTPException(status_code=400, detail="Cannot edit a locked bill. Delete or edit the associated collection payment first.")
         
     result_party = await db.execute(select(Party).where(Party.id == db_purchase.party_id))
     old_supplier = result_party.scalar_one_or_none()
@@ -222,9 +215,6 @@ async def delete_purchase(purchase_id: UUID4, db: AsyncSession = Depends(deps.ge
     db_purchase = result.scalar_one_or_none()
     if not db_purchase:
         raise HTTPException(status_code=404, detail="Purchase not found")
-
-    if db_purchase.is_locked:
-        raise HTTPException(status_code=400, detail="Cannot delete a locked bill. Delete or edit the associated collection payment first.")
 
     result_party = await db.execute(select(Party).where(Party.id == db_purchase.party_id))
     supplier = result_party.scalar_one_or_none()

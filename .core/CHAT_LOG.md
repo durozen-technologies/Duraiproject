@@ -793,3 +793,149 @@ None
 **User:** @[BillEntryScreen()] in the purchase and sale, make as one horizontally table with proper table format,, make use the reference @[saleentry.html] /frontend-ui-engineering /impeccable layout /impeccable shape
 
 **Antigravity:** Refactored the Purchase and Sale sections into horizontally scrollable tables in `BillEntryScreen.tsx`, utilizing proper `<ScrollView>`, `Th`, and `Td` components to mimic `saleentry.html` with impeccable styling.
+
+[2026-08-05 10:41:02] User requested to add full preview of a bill when tapping it. Commands ran: Test-Path, Add-Content
+
+[2026-08-05 10:48:23] User requested to change BillPreviewModal layout to match BillEntryScreen. Updated backend and rewrote BillPreviewModal.tsx.
+
+[2026-08-05 10:58:21] User requested to add the summary section into the bill preview. Updated BillPreviewModal.tsx to include the SUMMARY block and Remaining Weight display.
+# # #   [ 2 0 2 6 - 0 8 - 0 5   1 1 : 3 5 : 2 6 ]   A d d   P e r - R o w   E m p t y   B i r d   W e i g h t   O v e r r i d e 
+ -   U s e r   a p p r o v e d   p l a n   t o   a d d   \ E m p t   ( g ) \   c o l u m n   t o   g r i d   d i r e c t l y . 
+ -   I m p l e m e n t e d   b a c k e n d   \ e m p t y _ b i r d _ w e i g h t _ g \   f o r   P u r c h a s e   a n d   S a l e . 
+ -   U p d a t e d   \ d a y _ b i l l s . p y \   e n d p o i n t s   a n d   \ d a y _ b i l l . p y \   m o d e l s . 
+ -   U p d a t e d   \  i l l E n t r y C a l c . t s \   f r o n t e n d   l o g i c   t o   u s e   r o w   o v e r r i d e   o r   f a l l b a c k   t o   g l o b a l . 
+ -   A d d e d   \ E m p t   ( g ) \   c o l u m n s   t o   \ B i l l E n t r y S c r e e n . t s x \   t a b l e s   a n d   \ B i l l P r e v i e w M o d a l . t s x \   t a b l e s . 
+ -   A l l   c o d e   v e r i f i e d   w i t h   \ 	 s c   - - n o E m i t \ .  
+ 
+[2026-08-05 11:59:13] Updated dropdowns and text inputs in BillEntryScreen to use absolute positioning and a polished compact mode.
+
+[2026-08-05 12:13:55] User requested Excel-style dropdowns for the grids. Formulated a plan and successfully executed the redesign for Party, Item, and Driver components to use absolute positioning, sleeker h-8 heights, and chevron icons.
+
+[2026-08-05 12:19:31] User noticed dropdown lists were rendering behind the TotalsStrip and requested they be the same width as the text field. Fixed zIndex on ScrollView and removed min-width on dropdowns.
+
+[2026-08-05 12:30:41] User requested to remove the inner bordered styling from the dropdown input boxes so they blend completely seamlessly into the Td cells like Excel. Removed borders, background, and rounding from the parent views in the dropdown components.
+
+[2026-08-05 12:32:35] User shared a screenshot indicating that the borderless dropdowns looked misaligned compared to the other text inputs in the grid. Restored the borders, rounding, and background to the dropdown components to match the rest of the table.
+
+[2026-08-05 12:54:15] User reported horizontal scrolling was broken in desktop/web view. Removed 'overflow: visible' from horizontal ScrollViews in BillEntryScreen.tsx to restore native scroll behavior on Web.
+
+[2026-08-05 13:02:07] User noticed that dropdowns were now hiding behind the scrollview on Web. Solved this elegantly by passing an onDropdownOpen callback and dynamically adding 150px of padding to the ScrollView's contentContainerStyle only when a dropdown is open, ensuring it doesn't clip without breaking horizontal scroll.
+
+
+[2026-08-05 14:21:00] User approved Collection + party balance plan (no FIFO, CR/DR opening, To Pay/To Receive, Cash+UPI+Bank). Implemented signed ledger (sale unpaid decreases balance), simplified collection API, CR/DR UI, Collection screen rewrite.
+
+
+[2026-08-05 15:34:00] User requested Bill Preview Edit/Delete from Bills menu (mobile+web), no restrictions, UI copy of bill entries. Implemented day-bill PUT/DELETE, removed purchase/sale lock checks, preview Edit/Delete, BillEntry edit mode.
+
+
+[2026-08-05 15:46:00] User asked to remove BILL PREVIEW modal; open Bill Entry as preview instead. Edit unlocks fields; Delete sits beside Edit in header.
+
+[2026-08-05 16:00:52] User requested to change the 'Empty Bird (g)' label to 'Weight Loss'. Updated the FieldLabel in BillEntryScreen.tsx.
+
+[2026-08-05 16:05:00] User requested layout changes in BillEntryScreen summary: moved Remaining Weight below Profit/Loss on the left side, and moved Cash Received above UPI Received on the right side.
+
+[2026-08-05 16:07:25] User reported that typing in the Driver dropdown for Sales was not triggering the padding at the bottom of the table to prevent clipping. Fixed the bug by adding the missing onDropdownOpen callback to the DriverSearchDropdown in the Sale row.
+
+[2026-08-05 16:27:34] Merged Driver Mobile into the Driver field. Removed the separate Mobile column from BillEntryScreen and updated DriverSearchDropdown to show the mobile number beneath the driver name.
+
+[2026-08-05 16:37:12] User asked about the height of the driver field and requested all fields to be the same height. Increased all fields in the row (Party, Item, Vehicle, and NumInputs) to exactly 36px (h-9) to match the new Driver field height, ensuring a perfectly uniform row.
+
+[2026-08-05 16:44:49] User requested to change expense categories from buttons to a searchable dropdown. Removed the category buttons block and created CategorySearchDropdown to replace the plain text Expense Name field.
+
+### [2026-08-06 09:15:00] User request:
+Update BillEntryScreen UI to Match Image... Follow the standard itself for icons.
+### Agent Response:
+Executed the plan: Updated BillEntryScreen.tsx replacing TotalsStrip with SummaryCards, styling headers, wrapping Date/Weight Loss in a card, and using lucide-react-native icons.
+
+### [2026-08-06 09:25:00] User request:
+Increase the height and size of the bill entry table cells.
+### Agent Response:
+Increased the size and padding of the inputs and text across the BillEntryScreen table components.
+
+### [2026-08-06 09:30:00] User request:
+Group Cash, UPI, and Bank columns under 'Paid Amount' header.
+### Agent Response:
+Created a ThGrouped component and updated the headers in both the Purchases and Sales tables to display the new grouped format.
+
+### [2026-08-06 09:32:00] User request:
+Fix text wrapping in 'Birds/Box' column header.
+### Agent Response:
+Increased the column width to 100 to prevent the header text from wrapping.
+
+### [2026-08-06 09:35:00] User request:
+Vehicle number fully not visible.
+### Agent Response:
+Increased the column width for Vehicle to 150 to prevent text cutoff.
+
+### [2026-08-06 09:37:00] User request:
+Use a datepicker for Date field and format as DD/MM/YYYY.
+### Agent Response:
+Updated the Web Date input to use the native browser datepicker, which automatically handles the DD/MM/YYYY display while providing a calendar interface.
+
+### [2026-08-06 09:42:00] User request:
+Make the weight loss keep the pencil icon to change it, default as 40g, and show a 'g' box.
+### Agent Response:
+Replaced the simple text input with an input group that displays the value alongside a gray 'g' box and a pencil icon for editing.
+
+### [2026-08-06 09:44:00] User request:
+Disable the 40 gram by default and enable on pencil click.
+### Agent Response:
+Implemented an edit toggle state for Weight Loss. The input is disabled and greyed out by default until the pencil icon is clicked.
+
+### [2026-08-06 09:47:00] User request:
+Make pencil green, and add a red cross to cancel editing.
+### Agent Response:
+Colored the pencil green, and added a red X icon that appears during editing. Clicking it resets the weight loss to 40g and exits edit mode.
+
+### [2026-08-06 09:49:00] User request:
+Add extra space on scroller below field entering.
+### Agent Response:
+Increased the bottom padding of the horizontal scroll views to add extra space below the rows.
+
+### [2026-08-06 09:54:00] User request:
+Make Party name and Item name fields bold font.
+### Agent Response:
+Updated the dropdown components for Party and Item to use a bold font when a value is selected, making them stand out more clearly.
+
+### [2026-08-06 09:57:00] User request:
+Make Party name show Name on top and Nickname below, like the Driver field.
+### Agent Response:
+Updated PartySearchDropdown to use a similar layout to DriverSearchDropdown, displaying the party name and nickname cleanly on two separate lines when selected.
+
+### [2026-08-06 10:05:00] User request:
+Added pencil icons for overrides on Tot Birds, Net Kg, and Amount/Invoice.
+### Agent Response:
+Implemented an EditableCalcCell component that allows users to override these autocalculated fields by clicking the pencil icon, reverting with the X button if needed.
+
+### [2026-08-06 10:16:00] User request:
+Added pencil icons below the calculated fields (Tot Birds, Net Kg, Amount) to allow manual overrides without disturbing the flow.
+### Agent Response:
+I have created a custom OverrideableField that places a subtle pencil icon below the computed values for Tot Birds, Net Kg, and Amount. Clicking the pencil icon switches the field to a manual numeric input, and clicking the red X reverts it back to auto-calculating mode.
+
+### [2026-08-06 10:23:00] User request:
+Fix pencil icon cutoff, align number baseline horizontally with other inputs.
+### Agent Response:
+I have perfectly aligned the numbers horizontally by matching the exact heights (h-10) of the other fields. The pencil icon now floats neatly below the number without pushing it upwards. I also increased the widths of the 'Tot Birds', 'Net Kg', and 'Amount/Invoice' columns so the red 'X' button fits comfortably when editing!
+
+### [2026-08-06 10:25:00] User request:
+Cancel cross mark is not visible.
+### Agent Response:
+I have fixed the layout issue! The input box was pushing the 'X' mark outside the bounds of the column. I've strictly sized the 'X' button and told the input box to shrink appropriately, so the red cancel mark will now always be perfectly visible on the right side.
+
+### [2026-08-06 10:31:00] User request:
+If I click the pencil icon after I cancel it, the net kg is not calculated automatically.
+### Agent Response:
+I have fixed this! I removed a background calculation that was fighting with the manual edits. Now, if you cancel an edit, it will strictly fall back to the live auto-calculated numbers. Also, if you completely clear out an input box (like Tot Birds), it will now correctly treat it as 0 instead of ignoring your edit.
+
+### [2026-08-06 11:05:00] User request:
+Expenses items are hiding behind Total expense area. Make column proper alignment like multiple expense, make like purchase and sale concept itself.
+### Agent Response:
+I have completely redesigned the Expenses section! It is now a perfectly aligned, scrollable horizontal table that looks and behaves exactly like the Purchases and Sales tables. It shares a single set of headers at the top, and because it now scrolls properly, the category dropdown will no longer be hidden behind the Total Expenses footer.
+
+- [2026-08-06 13:59:00] User requested: "make applies on the tsx file, not on py file.". Agent applied the changes manually to BillEntryScreen.tsx.
+
+- [2026-08-06 15:05:00] User requested to update the Parties UI to match an uploaded design image with 'Amount to pay/receive', a today filter, and Purchase/Sale tabs. Implemented in PartiesScreen.tsx.
+
+- [2026-08-06 15:15:00] User requested: "in reports the datapicker is not working on the web view, fix it.". Agent applied Platform.OS web conditional rendering for native HTML inputs for the DatePickers in ReportsScreen.tsx.
+
+- [2026-08-06 16:15:00] User requested: "while on preview the purchase and sale bill, net kg are edit way...". Agent fixed OverrideableField components to respect the isEditing screen state.

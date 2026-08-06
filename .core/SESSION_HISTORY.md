@@ -696,3 +696,187 @@ px tsc --noEmit and found compilation errors. Removed invalid onClick properties
 - Refactored `BillEntryScreen.tsx` to replace vertical cards with a horizontally scrolling `<ScrollView>` table layout.
 - Styled header and data columns using `Th` and `Td` helpers for precise widths and aesthetics.
 - Addressed dropdown overflow by managing container styling and layout contexts.
+
+[2026-08-05 10:40:38] User requested to add a full non-editable preview of the bill when tapping it on the Bills screen. Added BillPreviewModal.tsx, updated DayBillCard to support onPress, updated BillsScreen.tsx to render the modal and manage state, updated dayBills.ts types for the detail endpoint.
+
+[2026-08-05 10:45:54] User requested to change BillPreviewModal to mirror the exact UI layout of BillEntryScreen. Updated backend day_bills.py to return full details, updated dayBills.ts types, and rewrote BillPreviewModal.tsx to use the horizontal scrolling grid layout.
+
+[2026-08-05 10:58:10] User requested to add the bottom summary card and remaining weight into the BillPreviewModal. Updated BillPreviewModal.tsx to include the SUMMARY section and Remaining Weight display exactly as they appear in BillEntryScreen.
+# # #   [ 2 0 2 6 - 0 8 - 0 5   1 1 : 3 5 : 1 0 ]   A d d   P e r - R o w   E m p t y   B i r d   W e i g h t   O v e r r i d e 
+ -   M o d i f i e d   b a c k e n d   m o d e l s   a n d   g e n e r a t e d   A l e m b i c   m i g r a t i o n   t o   a d d   \ e m p t y _ b i r d _ w e i g h t _ g \   t o   P u r c h a s e   a n d   S a l e . 
+ -   U p d a t e d   \ D a y B i l l D e t a i l \   i n t e r f a c e   i n   f r o n t e n d   t o   t y p e   t h e   n e w   f i e l d . 
+ -   U p d a t e d   \  i l l E n t r y C a l c . t s \   t o   a c c e p t   r o w - s p e c i f i c   o v e r r i d e s   a n d   u s e   t h e m   i n   \ c a l c N e t K g \ . 
+ -   A d d e d   \ E m p t   ( g ) \   c o l u m n   t o   \ B i l l E n t r y S c r e e n . t s x \   g r i d s . 
+ -   A d d e d   \ E m p t   ( g ) \   r e a d - o n l y   c o l u m n   t o   \ B i l l P r e v i e w M o d a l . t s x \ .  
+ 
+[2026-08-05 11:58:57] Updated dropdowns and text inputs in BillEntryScreen to a polished compact mode.
+
+[2026-08-05 12:06:16] Fixed dropdown list not showing by replacing NativeWind 'top-full' class with explicit top inline style.
+
+[2026-08-05 12:13:26] User requested to improve dropdown UI to look like Excel. Redesigned PartySearchDropdown, ItemSearchDropdown, and DriverSearchDropdown with absolute positioning, h-8 sizing, and chevron icons.
+
+[2026-08-05 12:18:42] Fixed BillEntryScreen ScrollView z-index clipping over TotalsStrip and removed min-width overrides on dropdowns.
+
+[2026-08-05 12:30:14] Removed inner styling (border, background, padding) from Party, Item, and Driver search dropdowns to blend seamlessly into the grid cells.
+
+[2026-08-05 12:32:20] Restored border and background styling to dropdown inputs (Party, Item, Driver) to align visually with other input fields in the table grid.
+
+[2026-08-05 12:54:04] Removed 'overflow: visible' from horizontal ScrollViews in BillEntryScreen to restore horizontal scrollability on Web.
+
+[2026-08-05 13:01:56] Fixed dropdown clipping issue on Web by dynamically adding paddingBottom to the ScrollView only when a dropdown is open.
+
+
+[2026-08-05 14:21:00] Implemented Collection party-balance ledger: fixed sale/day_bill balance signs; rewrote payments.py (no FIFO, bank_amount, opening_applied); CR/DR on NewParty/PartyDetails; Collection tabs To Pay/To Receive; PartiesScreen balance CR/DR display; migration b2c4e6f8a1d3.
+
+
+[2026-08-05 15:34:00] Implemented Bill Preview Edit/Delete: day_bills PUT/DELETE with balance revert; removed is_locked blocks; dayBills API update/delete; BillPreviewModal Edit/Delete+confirm; BillEntryScreen edit mode from BillsScreen.
+
+
+[2026-08-05 15:46:00] Removed BillPreviewModal. Bills card tap opens BillEntry in view mode; Edit enables editing; Delete with confirm next to Edit.
+
+[2026-08-05 16:00:38] Renamed 'Empty Bird (g)' to 'Weight Loss' in the new Bill Entry screen.
+
+[2026-08-05 16:04:30] Moved 'Remaining Weight' to the Summary section below Profit/Loss. Moved 'Cash Received' to the right column above UPI Received in BillEntryScreen.tsx.
+
+[2026-08-05 16:07:10] Fixed bug where the Sale row Driver dropdown was missing the onDropdownOpen callback, causing it to clip.
+
+[2026-08-05 16:27:17] Merged Driver Mobile into the Driver field. Removed the separate Mobile column from BillEntryScreen and updated DriverSearchDropdown to show the mobile number beneath the driver name.
+
+[2026-08-05 16:32:21] Standardized all table input heights to 36px (h-9) across BillEntryScreen and the Dropdown components to accommodate the new double-line driver display evenly.
+
+[2026-08-05 16:44:36] Replaced the expense category pill buttons with a new CategorySearchDropdown in the Expense Name field in BillEntryScreen.
+
+### [2026-08-06 09:15:00] UI Updates for BillEntryScreen
+- User requested UI updates for BillEntryScreen.tsx to match specific design aesthetic (Green/Blue themes, SummaryCards, Icons).
+- Analyzed the file and created an implementation plan.
+- Replaced TotalsStrip with a new SummaryCards component.
+- Added lucide-react-native icons.
+- Styled Purchases (Green) and Sales (Blue) appropriately.
+
+### [2026-08-06 09:25:00] UI Size Tweaks for BillEntryScreen Table
+- User requested to increase the height and text size of elements in the Purchase and Sale tables.
+- Increased padding, height (from h-9 to h-10) and font size (text-xs to text-sm) for Th, Td, NumInput, and dropdown components (PartySearchDropdown, ItemSearchDropdown, DriverSearchDropdown).
+
+### [2026-08-06 09:30:00] Grouped Headers for Payment Columns in BillEntryScreen
+- User requested to merge Cash, UPI, and Bank headers into a single 'Paid Amount' group.
+- Created a new ThGrouped component in BillEntryScreen.tsx.
+- Applied the new grouped header to both Purchases and Sales tables with their respective themes.
+
+### [2026-08-06 09:32:00] Fixed Wrapping for Birds/Box Header
+- User reported 'BIRDS/BOX' header text was wrapping inappropriately.
+- Increased the width of the Birds/Box column from w=80 to w=100 in both Purchase and Sales tables.
+
+### [2026-08-06 09:35:00] Fixed Truncation for Vehicle Column
+- User reported that the vehicle numbers were getting cut off in the Bill Entry tables.
+- Increased the width of the Vehicle column from w=120 to w=150 in both Purchase and Sales tables.
+
+### [2026-08-06 09:37:00] Changed Date Input to Native Datepicker
+- User requested the Date field to use a datepicker and display in DD/MM/YYYY format.
+- Replaced the plain TextInput with a native HTML <input type='date'> for the web platform to provide a built-in calendar picker and native localized format.
+
+### [2026-08-06 09:42:00] Updated Weight Loss Field UI
+- User requested a pencil icon and a 'g' box to clarify that the Weight Loss field defaults to 40g and can be changed per bill.
+- Updated the TextInput to an input group with a gray 'g' suffix box and a pencil icon to indicate editability.
+
+### [2026-08-06 09:44:00] Made Weight Loss Input Disabled by Default
+- User requested the 40g weight loss input to be disabled by default, only editable upon clicking the pencil icon.
+- Introduced isWeightLossEditing state to control the editability and applied visual styling to match the disabled/enabled states.
+
+### [2026-08-06 09:47:00] Made Pencil Icon Green and Added Red Cancel Icon
+- User requested the edit pencil icon to be green.
+- User requested a red cross icon to appear while editing, which cancels the edit and resets the value back to 40g.
+- Updated BillEntryScreen.tsx to toggle between a green Pencil and a red X icon based on the isWeightLossEditing state.
+
+### [2026-08-06 09:49:00] Added Padding Below Bill Entry Tables
+- User requested extra space below the fields inside the horizontal scrollers for Purchases and Sales.
+- Increased the default paddingBottom of the ScrollViews from 0 to 32 to provide more scroll area.
+
+### [2026-08-06 09:54:00] Made Party and Item Text Bold
+- User requested the Party name and Item name fields in the bill entry to have a bold font.
+- Updated PartySearchDropdown and ItemSearchDropdown to conditionally apply the font-bold class when a valid option is selected.
+
+### [2026-08-06 09:57:00] Made Party Selection Use Two-Line Format
+- User requested the Party dropdown to display the Name on the top line and the Nickname on the bottom line, matching the Driver layout.
+- Updated PartySearchDropdown to conditionally render a two-line text layout when a party is selected.
+
+### [2026-08-06 10:05:00] Added Manual Overrides to Computed Fields
+- Updated utils/billEntryCalc.ts to support manual override values for Tot Birds, Amount, and Invoice.
+- Updated BillEntryScreen.tsx state for PurchaseRow and SaleRow to track manual override states.
+- Replaced computed text elements in the tables with EditableCalcCell component to allow toggling overrides with a pencil icon.
+
+### [2026-08-06 10:16:00] Added manual override pencils to computed fields in Bill Entry
+- Added OverrideableField component to allow user override on 'Tot Birds', 'Net Kg', and 'Amount/Invoice'.
+- Pencil icon placed below the computed field, switching to an input when clicked.
+- Updated derivePurchase and deriveSale to handle the new override state.
+
+### [2026-08-06 10:23:00] Fixed OverrideableField baseline and width in Bill Entry
+- Adjusted OverrideableField to use exact h-10 container to perfectly match baseline alignment with other text inputs.
+- Positioned pencil icon absolutely at the bottom so it doesn't shift the text up.
+- Increased widths of Tot Birds (to 90), Net Kg (to 100), and Amount/Invoice (to 110) so the manual input X button is not cut off.
+
+### [2026-08-06 10:25:00] Fixed cutoff cancel button in Bill Entry
+- Added flex-shrink-0 and explicit width (w-6) to the cancel button container.
+- Added min-w-0 to the TextInput to ensure it shrinks correctly in a flex container on the web.
+
+### [2026-08-06 10:31:00] Fixed override cancellation and empty string handling in Bill Entry
+- Removed redundant state syncing for net_weight that was fighting with derived calculations.
+- Updated derivePurchase and deriveSale to treat empty manual inputs as 0 rather than falling back to computed values, allowing users to explicitly clear fields.
+
+### [2026-08-06 11:05:00] Refactored Expenses UI to horizontal table format
+- Replaced the card-based renderExpenseCard with renderExpenseRow.
+- Wrapped the Expenses list in a horizontal ScrollView with Th headers, matching the exact pattern used in Purchases and Sales.
+- This automatically fixed the Category dropdown z-index cutoff issue because the ScrollView dynamically adds padding when the dropdown is open.
+
+### [2026-08-06 11:08:00] Fixed TypeScript compilation errors
+- Added the missing manual override fields (birds_override, birds_manual, amount_override, amount_manual) to the editBill mapping in BillEntryScreen.tsx.
+
+### [2026-08-06 11:30:00] Refactored DayBillCard to match user uploaded screenshot style
+- Re-architected both Purchase and Sale columns to use a side-by-side layout within the column (Party/Items on the left, Kg/Count/Value on the right).
+- Added the light green pill styling for Items.
+- Added the dashed separator between Count and Value as seen in the mockup.
+
+### [2026-08-06 11:40:00] Fixed horizontal scrolling in preview mode
+- Moved pointerEvents='none' from the top-level container down to the content views inside the ScrollViews. This successfully blocks editing during preview while allowing the user to swipe and scroll horizontally to see all table columns.
+
+### [2026-08-06 11:48:00] Fixed Dropdown Selection Bug on Touchpads
+- Increased the onBlur timeout from 200ms to 400ms across Party, Item, Driver, and Expense Category dropdowns. This resolves the issue where a touch/click on a dropdown item was missed because the dropdown closed before the onPress event could fire.
+
+### [2026-08-06 12:28:00] Added Item-level Purchase vs Sale Validation
+- Added cross-validation in BillEntryScreen validate() to ensure Sale Birds do not exceed Purchase Birds for any specific item.
+- Added cross-validation to ensure Sale Weighbridge Weight does not exceed Purchase Weighbridge Weight for any specific item.
+
+### [2026-08-06 12:35:00] Moved Validation Errors to Inline Text
+- Updated the 'Td' component to support inline error rendering below the input field.
+- Removed the top-level cross-validation error message and instead assigned the error directly to the 'Item' field of the offending Sale rows.
+- Updated all inputs across Purchase, Sale, and Expense rows to pass their specific 'rowErrors' text directly to the Td wrapper so the user knows exactly what to fix without scrolling to the top.
+
+### [2026-08-06 12:40:00] Filtered Sale Items based on Purchases
+- Updated BillEntryScreen.tsx so the item selection dropdown in the Sale section only displays items that have already been selected in the Purchase section.
+
+### [2026-08-06 12:44:00] Required Box Rate in Sales
+- Updated validation to make 'box_rate' a required field (must be > 0) for Sales entries.
+- Added inline error messaging support for the Box Rate field.
+
+### [2026-08-06 12:51:00] Changed Cross-Validation to Alert Popup
+- Updated BillEntryScreen.tsx to show the cross-validation mismatch (Sale birds > Purchase birds, etc.) as a native Alert popup box with an 'OK' button, while keeping the standard 'Required' field errors as inline text below the specific inputs.
+
+### [2026-08-06 13:08:00] Fixed Net Weight Validation Bug in Sales
+- Fixed a bug where saving a Sale entry would falsely report 'Below Fields are Required' because the validation checked the raw 'r.net_weight' string (which is empty unless manually overridden) instead of the computed 'd.net' weight.
+- Added explicit validation and error rendering for the 'Weighbridge Weight' (Weigh Wt) field in Sales to ensure the user is prompted if they forget to enter it.
+
+### [2026-08-06 13:09:00] Removed Net Kg Validation
+- Removed 'Required' validation from the Sale 'Net Kg' field since it is an autocalculated value and will implicitly populate once the 'Weighbridge Weight' and 'Boxes' are correctly filled.
+
+### [2026-08-06 13:13:00] Fixed Vertical Alignment of Text Fields
+- Fixed vertical alignment of plain text fields like AVG WT, Balance, and Expense Amounts by wrapping them in an h-10 container to match the height of input boxes, ensuring they don't float to the top edge.
+
+### [2026-08-06 13:54:00] Added Purchase and Sale Labels to Bills List
+- Updated 'DayBillCard' to explicitly show a 'PURCHASE' heading above the left column and a 'SALE' heading above the right column for clearer readability.
+
+- [2026-08-06 13:58:00] User requested to apply changes directly to TSX instead of using python scripts. Applied missed validation message and expense row text alignment/error state fixes to d:\duraiproject\Duraiproject\frontend_mobile\src\screens\BillEntryScreen.tsx.
+
+- [2026-08-06 15:05:00] Updated PartiesScreen to match new summary card design with 'Amount to pay/receive', today filter, and Purchase/Sale tabs replacing the old filter.
+
+- [2026-08-06 15:15:00] Fixed date picker in ReportsScreen for web by using native HTML input elements.
+
+- [2026-08-06 16:15:00] Fixed OverrideableField logic in BillEntryScreen.tsx to respect preview mode. Replaced hardcoded isEditing={true} with isEditing={isEditing} so that net kg, birds, and amount are read-only when viewing a saved bill.

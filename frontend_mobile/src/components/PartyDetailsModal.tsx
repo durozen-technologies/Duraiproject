@@ -20,20 +20,23 @@ export default function PartyDetailsModal({ isVisible, onClose, party }: PartyDe
     is_active: true,
     opening_balance: '0'
   });
+  const [openingDirection, setOpeningDirection] = useState<'CR' | 'DR'>('CR');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (party) {
+      const opening = parseFloat(party.opening_balance || 0);
       setFormData({
         name: party.name || '',
         nickname: party.nickname || '',
         mobile: party.mobile || '',
         address: party.address || '',
         is_active: party.is_active ?? true,
-        opening_balance: party.opening_balance?.toString() || '0'
+        opening_balance: Math.abs(opening).toString()
       });
+      setOpeningDirection(opening < 0 ? 'DR' : 'CR');
       setIsEditing(false);
     }
   }, [party]);
@@ -66,9 +69,10 @@ export default function PartyDetailsModal({ isVisible, onClose, party }: PartyDe
     }
     setErrorMsg('');
     
+    const amount = Math.abs(parseFloat(formData.opening_balance) || 0);
     const submitData = {
       ...formData,
-      opening_balance: parseFloat(formData.opening_balance) || 0
+      opening_balance: openingDirection === 'CR' ? amount : -amount
     };
     
     updateMutation.mutate(submitData);
@@ -212,13 +216,28 @@ export default function PartyDetailsModal({ isVisible, onClose, party }: PartyDe
               <Text className="text-sm font-semibold text-gray-700 ml-1">Opening Balance</Text>
               {isEditing ? (
                 <View>
+                  {!(party && (parseFloat(party.current_balance) !== parseFloat(party.opening_balance) || parseFloat(party.unpaid_opening_balance) !== parseFloat(party.opening_balance))) && (
+                    <View className="flex-row gap-2 mb-2">
+                      <TouchableOpacity
+                        onPress={() => setOpeningDirection('CR')}
+                        className={`flex-1 py-2 items-center rounded-lg border ${openingDirection === 'CR' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
+                      >
+                        <Text className={`text-sm font-semibold ${openingDirection === 'CR' ? 'text-white' : 'text-gray-600'}`}>CR</Text>
+                        <Text className={`text-[10px] ${openingDirection === 'CR' ? 'text-green-100' : 'text-gray-400'}`}>To Pay</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setOpeningDirection('DR')}
+                        className={`flex-1 py-2 items-center rounded-lg border ${openingDirection === 'DR' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
+                      >
+                        <Text className={`text-sm font-semibold ${openingDirection === 'DR' ? 'text-white' : 'text-gray-600'}`}>DR</Text>
+                        <Text className={`text-[10px] ${openingDirection === 'DR' ? 'text-green-100' : 'text-gray-400'}`}>To Receive</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                   <TextInput
                     value={formData.opening_balance}
                     onChangeText={(text) => {
-                      let formatted = text.replace(/[^0-9.-]/g, '');
-                      if (formatted.lastIndexOf('-') > 0) {
-                          formatted = formatted.replace(/(?!^)-/g, '');
-                      }
+                      const formatted = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                       setFormData({ ...formData, opening_balance: formatted });
                     }}
                     placeholder="Enter opening balance"
@@ -229,12 +248,15 @@ export default function PartyDetailsModal({ isVisible, onClose, party }: PartyDe
                   {(party && (parseFloat(party.current_balance) !== parseFloat(party.opening_balance) || parseFloat(party.unpaid_opening_balance) !== parseFloat(party.opening_balance))) ? (
                     <Text className="text-xs text-orange-600 mt-1 ml-1">Cannot edit opening balance after transactions have started</Text>
                   ) : (
-                    <Text className="text-gray-500 text-xs mt-1 ml-1">Enter e.g. -100 if you need to receive, or 100 if you need to pay</Text>
+                    <Text className="text-gray-500 text-xs mt-1 ml-1">CR = To Pay, DR = To Receive</Text>
                   )}
                 </View>
               ) : (
                 <View className="bg-gray-50 rounded-lg px-4 py-3 border border-gray-200">
-                  <Text className="text-base text-gray-900">₹{parseFloat(party.opening_balance || 0).toLocaleString()}</Text>
+                  <Text className="text-base text-gray-900">
+                    ₹{Math.abs(parseFloat(party.opening_balance || 0)).toLocaleString()}{' '}
+                    {parseFloat(party.opening_balance || 0) < 0 ? 'DR' : parseFloat(party.opening_balance || 0) > 0 ? 'CR' : ''}
+                  </Text>
                 </View>
               )}
             </View>

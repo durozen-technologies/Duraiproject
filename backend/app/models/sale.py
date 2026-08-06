@@ -17,7 +17,7 @@ class Sale(Base, BaseModelMixin):
     item_id: Mapped[UUID | None] = mapped_column(ForeignKey("items.id"), nullable=True, index=True)
     
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    bill_number: Mapped[str | None] = mapped_column(String(50), unique=True, index=True, nullable=True)
+    bill_number: Mapped[str | None] = mapped_column(String(50), index=True, nullable=True)
     vehicle_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
     driver_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     

@@ -6,6 +6,11 @@ export function parseNum(v: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Round money/weight money results to exactly 2 decimal places. */
+export function round2(n: number): number {
+  return Math.round((Number.isFinite(n) ? n : 0) * 100) / 100;
+}
+
 export function parseIntSafe(v: string | number | null | undefined): number {
   if (v === null || v === undefined || v === '') return 0;
   const n = typeof v === 'number' ? Math.trunc(v) : parseInt(String(v), 10);
@@ -24,7 +29,7 @@ export function calcNetKg(
   netOverride: string | number | null | undefined,
   netManual: boolean
 ): number {
-  if (netManual && netOverride !== null && netOverride !== undefined && netOverride !== '') {
+  if (netManual && netOverride !== null && netOverride !== undefined) {
     return Math.max(0, parseNum(netOverride));
   }
   const emptyKg = (parseNum(emptyBirdG) || 40) / 1000;
@@ -36,15 +41,15 @@ export function avgWeight(netKg: number, birds: number): number {
 }
 
 export function purchaseAmount(netKg: number, rate: string | number): number {
-  return netKg * parseNum(rate);
+  return round2(netKg * parseNum(rate));
 }
 
 export function purchasePaid(cash: string | number, upi: string | number, bank: string | number): number {
-  return parseNum(cash) + parseNum(upi) + parseNum(bank);
+  return round2(parseNum(cash) + parseNum(upi) + parseNum(bank));
 }
 
 export function purchaseBalance(amount: number, paid: number): number {
-  return amount - paid;
+  return round2(amount - paid);
 }
 
 export function saleInvoice(
@@ -53,19 +58,19 @@ export function saleInvoice(
   boxes: string | number,
   boxRate: string | number
 ): number {
-  return netKg * parseNum(rate) + parseIntSafe(boxes) * parseNum(boxRate);
+  return round2(netKg * parseNum(rate) + parseIntSafe(boxes) * parseNum(boxRate));
 }
 
 export function saleReceived(cash: string | number, upi: string | number, bank: string | number): number {
-  return parseNum(cash) + parseNum(upi) + parseNum(bank);
+  return round2(parseNum(cash) + parseNum(upi) + parseNum(bank));
 }
 
 export function saleBalance(invoice: number, received: number): number {
-  return invoice - received;
+  return round2(invoice - received);
 }
 
 export function expenseTotal(cash: string | number, upi: string | number): number {
-  return parseNum(cash) + parseNum(upi);
+  return round2(parseNum(cash) + parseNum(upi));
 }
 
 export interface PurchaseRowLike {
@@ -78,6 +83,10 @@ export interface PurchaseRowLike {
   cash_payment: string | number;
   upi_payment: string | number;
   bank_payment: string | number;
+  birds_override?: string | number;
+  birds_manual?: boolean;
+  amount_override?: string | number;
+  amount_manual?: boolean;
 }
 
 export interface SaleRowLike {
@@ -91,6 +100,10 @@ export interface SaleRowLike {
   cash_payment: string | number;
   upi_payment: string | number;
   bank_payment: string | number;
+  birds_override?: string | number;
+  birds_manual?: boolean;
+  amount_override?: string | number;
+  amount_manual?: boolean;
 }
 
 export interface ExpenseRowLike {
@@ -99,13 +112,19 @@ export interface ExpenseRowLike {
 }
 
 export function derivePurchase(row: PurchaseRowLike, emptyBirdG: string | number) {
-  const birds = totalBirds(row.boxes, row.birds_per_box);
+  let birds = totalBirds(row.boxes, row.birds_per_box);
+  if (row.birds_manual && row.birds_override !== undefined) {
+    birds = Math.max(0, parseIntSafe(row.birds_override));
+  }
   const net = calcNetKg(row.weighbridge_weight, birds, emptyBirdG, row.net_weight, !!row.net_manual);
-  const amount = purchaseAmount(net, row.purchase_rate);
+  let amount = purchaseAmount(net, row.purchase_rate);
+  if (row.amount_manual && row.amount_override !== undefined) {
+    amount = round2(Math.max(0, parseNum(row.amount_override)));
+  }
   const paid = purchasePaid(row.cash_payment, row.upi_payment, row.bank_payment);
   return {
     birds,
-    net,
+    net: round2(net),
     avgWt: avgWeight(net, birds),
     amount,
     paid,
@@ -114,13 +133,19 @@ export function derivePurchase(row: PurchaseRowLike, emptyBirdG: string | number
 }
 
 export function deriveSale(row: SaleRowLike, emptyBirdG: string | number) {
-  const birds = totalBirds(row.boxes, row.birds_per_box);
+  let birds = totalBirds(row.boxes, row.birds_per_box);
+  if (row.birds_manual && row.birds_override !== undefined) {
+    birds = Math.max(0, parseIntSafe(row.birds_override));
+  }
   const net = calcNetKg(row.weighbridge_weight, birds, emptyBirdG, row.net_weight, !!row.net_manual);
-  const invoice = saleInvoice(net, row.weight_rate, row.boxes, row.box_rate);
+  let invoice = saleInvoice(net, row.weight_rate, row.boxes, row.box_rate);
+  if (row.amount_manual && row.amount_override !== undefined) {
+    invoice = round2(Math.max(0, parseNum(row.amount_override)));
+  }
   const received = saleReceived(row.cash_payment, row.upi_payment, row.bank_payment);
   return {
     birds,
-    net,
+    net: round2(net),
     invoice,
     received,
     balance: saleBalance(invoice, received),
@@ -129,6 +154,96 @@ export function deriveSale(row: SaleRowLike, emptyBirdG: string | number) {
 
 export function deriveExpense(row: ExpenseRowLike) {
   return { total: expenseTotal(row.cash_amount, row.upi_amount) };
+}
+
+/** True when saved value differs from auto-calc (used to restore pencil vs textbox after reload). */
+function differs(a: number, b: number, eps = 0.005): boolean {
+  return Math.abs(a - b) > eps;
+}
+
+/**
+ * Infer Tot Birds / Net Kg / Amount override flags from persisted purchase fields.
+ * Manual mode when saved value ≠ what boxes×bpb / weighbridge formula / rate would produce.
+ */
+export function inferPurchaseOverrides(
+  p: {
+    total_boxes?: number | null;
+    birds_per_box?: number | null;
+    actual_birds?: number | null;
+    weighbridge_weight?: number | null;
+    net_weight?: number | null;
+    purchase_rate?: number | null;
+    purchase_amount?: number | null;
+  },
+  emptyBirdG: string | number
+) {
+  const boxes = parseIntSafe(p.total_boxes);
+  const bpb = parseIntSafe(p.birds_per_box);
+  const autoBirds = totalBirds(boxes, bpb);
+  const actualBirds = parseIntSafe(p.actual_birds ?? autoBirds);
+  const birdsManual = actualBirds !== autoBirds;
+  const birds = birdsManual ? actualBirds : autoBirds;
+
+  const autoNet = round2(calcNetKg(p.weighbridge_weight, birds, emptyBirdG, null, false));
+  const savedNet = round2(parseNum(p.net_weight));
+  const netManual = differs(savedNet, autoNet);
+  const net = netManual ? savedNet : autoNet;
+
+  const autoAmount = purchaseAmount(net, p.purchase_rate);
+  const savedAmount = round2(parseNum(p.purchase_amount));
+  const amountManual = differs(savedAmount, autoAmount);
+
+  return {
+    birds_manual: birdsManual,
+    birds_override: birdsManual ? String(actualBirds) : '',
+    net_manual: netManual,
+    net_weight: savedNet.toFixed(2),
+    amount_manual: amountManual,
+    amount_override: amountManual ? savedAmount.toFixed(2) : '',
+  };
+}
+
+/**
+ * Infer Tot Birds / Net Kg / Invoice override flags from persisted sale fields.
+ */
+export function inferSaleOverrides(
+  s: {
+    boxes?: number | null;
+    birds_per_box?: number | null;
+    actual_birds?: number | null;
+    weighbridge_weight?: number | null;
+    net_weight?: number | null;
+    weight?: number | null;
+    weight_rate?: number | null;
+    box_rate?: number | null;
+    total_invoice_amount?: number | null;
+  },
+  emptyBirdG: string | number
+) {
+  const boxes = parseIntSafe(s.boxes);
+  const bpb = parseIntSafe(s.birds_per_box);
+  const autoBirds = totalBirds(boxes, bpb);
+  const actualBirds = parseIntSafe(s.actual_birds ?? autoBirds);
+  const birdsManual = actualBirds !== autoBirds;
+  const birds = birdsManual ? actualBirds : autoBirds;
+
+  const savedNet = round2(parseNum(s.net_weight ?? s.weight));
+  const autoNet = round2(calcNetKg(s.weighbridge_weight, birds, emptyBirdG, null, false));
+  const netManual = differs(savedNet, autoNet);
+  const net = netManual ? savedNet : autoNet;
+
+  const autoInvoice = saleInvoice(net, s.weight_rate, boxes, s.box_rate);
+  const savedInvoice = round2(parseNum(s.total_invoice_amount));
+  const amountManual = differs(savedInvoice, autoInvoice);
+
+  return {
+    birds_manual: birdsManual,
+    birds_override: birdsManual ? String(actualBirds) : '',
+    net_manual: netManual,
+    net_weight: savedNet.toFixed(2),
+    amount_manual: amountManual,
+    amount_override: amountManual ? savedInvoice.toFixed(2) : '',
+  };
 }
 
 export function summarizeBillEntry(

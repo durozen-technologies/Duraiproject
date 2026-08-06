@@ -25,6 +25,7 @@ import DriverDetailsScreen from '../screens/DriverDetailsScreen';
 import ItemsScreen from '../screens/ItemsScreen';
 import NewItemScreen from '../screens/NewItemScreen';
 import BillEntryScreen from '../screens/BillEntryScreen';
+import PartyDetailsScreen from '../screens/PartyDetailsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -47,6 +48,7 @@ export const linking = {
         }
       },
       NewParty: 'parties/new',
+      PartyDetails: 'parties/details',
       NewPurchase: 'purchases/new',
       NewSale: 'sales/new',
       BillEntry: 'bill-entry',
@@ -161,6 +163,7 @@ export function RootNavigator() {
         <>
           <Stack.Screen name="MainTabs" component={MainTabNavigator} />
           <Stack.Screen name="NewParty" component={NewPartyScreen} />
+          <Stack.Screen name="PartyDetails" component={PartyDetailsScreen} />
           <Stack.Screen name="NewPurchase" component={NewPurchaseScreen} />
           <Stack.Screen name="NewSale" component={NewSaleScreen} />
           <Stack.Screen name="BillEntry" component={BillEntryScreen} />

@@ -33,6 +33,8 @@ export default function DashboardScreen() {
   const [appliedCustomEnd, setAppliedCustomEnd] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const formatInrAmount = (value: number) =>
+    Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const getDateRange = () => {
     const now = new Date();
@@ -258,7 +260,7 @@ export default function DashboardScreen() {
               <TrendingUp color="#006948" size={16} />
             </View>
             <View>
-              <Text className="text-lg font-bold text-gray-900">₹{stats.total_sales.toLocaleString()}</Text>
+              <Text className="text-lg font-bold text-gray-900">₹{formatInrAmount(stats.total_sales)}</Text>
             </View>
           </View>
 
@@ -269,7 +271,7 @@ export default function DashboardScreen() {
               <ShoppingCart color="#6b7280" size={16} />
             </View>
             <View>
-              <Text className="text-lg font-bold text-gray-900">₹{stats.total_purchases.toLocaleString()}</Text>
+              <Text className="text-lg font-bold text-gray-900">₹{formatInrAmount(stats.total_purchases)}</Text>
             </View>
           </View>
 
@@ -280,7 +282,7 @@ export default function DashboardScreen() {
               <Receipt color="#6b7280" size={16} />
             </View>
             <View>
-              <Text className="text-lg font-bold text-gray-900">₹{stats.total_expenses.toLocaleString()}</Text>
+              <Text className="text-lg font-bold text-gray-900">₹{formatInrAmount(stats.total_expenses)}</Text>
             </View>
           </View>
 
@@ -291,7 +293,7 @@ export default function DashboardScreen() {
               <BarChart2 color="white" size={16} />
             </View>
             <View>
-              <Text className="text-lg font-bold text-white">₹{stats.net_profit.toLocaleString()}</Text>
+              <Text className="text-lg font-bold text-white">₹{formatInrAmount(stats.net_profit)}</Text>
             </View>
           </View>
         </View>
@@ -363,7 +365,7 @@ export default function DashboardScreen() {
             </View>
             <View className="items-end">
               <Text className="text-xs font-semibold text-gray-600">Net Weight</Text>
-              <Text className="text-base font-bold text-[#006948]">{(stats.weight_purchased || 0).toFixed(2)} kg</Text>
+              <Text className="text-base font-bold text-[#006948]">{formatInrAmount(stats.weight_purchased)} kg</Text>
             </View>
           </View>
 
@@ -376,7 +378,7 @@ export default function DashboardScreen() {
             </View>
             <View className="items-end">
               <Text className="text-xs font-semibold text-gray-600">Net Weight</Text>
-              <Text className="text-base font-bold text-[#006948]">{(stats.weight_sold || 0).toFixed(2)} kg</Text>
+              <Text className="text-base font-bold text-[#006948]">{formatInrAmount(stats.weight_sold)} kg</Text>
             </View>
           </View>
         </View>
@@ -391,7 +393,7 @@ export default function DashboardScreen() {
               </View>
               <View className="ml-3">
                 <Text className="text-xs font-semibold text-gray-600">Current Purchaser Dues</Text>
-                <Text className="text-base font-bold text-gray-900">₹{(stats.purchaser_dues || 0).toLocaleString()}</Text>
+                <Text className="text-base font-bold text-gray-900">₹{formatInrAmount(stats.purchaser_dues)}</Text>
               </View>
             </View>
             <ChevronRight color="#9ca3af" size={20} />
@@ -404,7 +406,7 @@ export default function DashboardScreen() {
               </View>
               <View>
                 <Text className="text-xs font-semibold text-gray-600">Current Supplier Payables</Text>
-                <Text className="text-base font-bold text-gray-900">₹{(stats.supplier_payables || 0).toLocaleString()}</Text>
+                <Text className="text-base font-bold text-gray-900">₹{formatInrAmount(stats.supplier_payables)}</Text>
               </View>
             </View>
             <ChevronRight color="#9ca3af" size={20} />
@@ -502,7 +504,7 @@ export default function DashboardScreen() {
                       </View>
                       <View className="items-end">
                         <Text className="text-xs text-gray-500">Weight</Text>
-                        <Text className="text-base font-bold text-gray-900">{item.new_total_weight} kg</Text>
+                        <Text className="text-base font-bold text-gray-900">{formatInrAmount(item.new_total_weight)} kg</Text>
                       </View>
                     </View>
                     {item.notes ? (

@@ -97,10 +97,10 @@ async def get_party_pending_bills(party_id: UUID4, db: AsyncSession = Depends(de
         
     pending = []
     
-    if float(party.unpaid_opening_balance) > 0:
+    if float(party.unpaid_opening_balance) != 0:
         pending.append(PendingBill(
-            total_amount=float(party.opening_balance),
-            balance_amount=float(party.unpaid_opening_balance),
+            total_amount=abs(float(party.opening_balance)),
+            balance_amount=abs(float(party.unpaid_opening_balance)),
             is_opening_balance=True
         ))
         
@@ -169,6 +169,8 @@ async def update_party(party_id: UUID4, party_update: PartyUpdate, db: AsyncSess
     if 'opening_balance' in update_data:
         diff = update_data['opening_balance'] - float(db_party.opening_balance)
         db_party.current_balance = float(db_party.current_balance) + diff
+        # Keep unpaid opening in sync when opening is edited (pre-transaction)
+        db_party.unpaid_opening_balance = float(db_party.unpaid_opening_balance or 0) + diff
 
     for key, value in update_data.items():
         setattr(db_party, key, value)

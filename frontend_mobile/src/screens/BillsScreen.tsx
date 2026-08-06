@@ -83,7 +83,7 @@ export default function BillsScreen({ navigation }: any) {
       <View className="px-4 pt-3 pb-2 bg-white border-b border-gray-100">
         <TextInput
           className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-sm mb-3"
-          placeholder="Search DPS No / party name"
+          placeholder="Search DPS No / Party Name"
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -201,7 +201,13 @@ export default function BillsScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
           ) : (
-            filtered.map((bill) => <DayBillCard key={bill.id} bill={bill} />)
+            filtered.map((bill) => (
+              <DayBillCard
+                key={bill.id}
+                bill={bill}
+                onPress={() => navigation.navigate('BillEntry', { dayBillId: bill.id, mode: 'view' })}
+              />
+            ))
           )}
         </ScrollView>
       )}
