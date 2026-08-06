@@ -103,9 +103,13 @@ export default function ExpenseCategoriesScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} className="mr-3">
           <ArrowLeft color="#111827" size={24} />
         </TouchableOpacity>
-        <Text className="flex-1 text-xl font-bold text-gray-900">Expense Categories</Text>
-        <TouchableOpacity onPress={openAddModal} className="w-10 h-10 bg-[#006948] rounded-full items-center justify-center">
-          <Plus color="white" size={20} />
+        <Text className="flex-1 text-xl font-bold text-gray-900">Manage Expense</Text>
+        <TouchableOpacity
+          onPress={openAddModal}
+          className="bg-[#0b4d3a] px-3 py-2 rounded-lg flex-row items-center"
+        >
+          <Plus color="white" size={18} />
+          <Text className="text-white text-xs font-bold ml-1">New Items</Text>
         </TouchableOpacity>
       </View>
 

@@ -12,6 +12,7 @@ import client from '../api/client';
 import { fetchDrivers } from '../api/drivers';
 import { formatDateToDDMMYYYY } from '../utils/formatDate';
 import ConfirmModal from '../components/ConfirmModal';
+import { inferSaleOverrides, round2 } from '../utils/billEntryCalc';
 
 export default function NewSaleScreen({ navigation, route }: any) {
   const queryClient = useQueryClient();
@@ -26,15 +27,26 @@ export default function NewSaleScreen({ navigation, route }: any) {
     driver_name: editData?.driver_name || '',
     vehicle_number: editData?.vehicle_number || '',
     weighbridge_weight: editData?.weighbridge_weight?.toString() || '',
-    net_weight: editData?.weight?.toString() || '',
+    net_weight:
+      editData?.weight != null
+        ? Number(editData.weight).toFixed(2)
+        : editData?.net_weight != null
+          ? Number(editData.net_weight).toFixed(2)
+          : '',
     weight_rate: editData?.weight_rate?.toString() || '',
     weight_amount: editData?.weight_amount?.toString() || '',
     boxes: editData?.boxes?.toString() || '',
     birds_per_box: editData?.birds_per_box?.toString() || '',
-    actual_birds: (editData?.boxes && editData?.birds_per_box) ? (editData.boxes * editData.birds_per_box).toString() : '',
+    actual_birds:
+      editData?.actual_birds != null
+        ? String(editData.actual_birds)
+        : editData?.boxes && editData?.birds_per_box
+          ? (editData.boxes * editData.birds_per_box).toString()
+          : '',
     box_rate: editData?.box_rate?.toString() || '',
     box_amount: editData?.box_amount?.toString() || '',
-    total_amount: editData?.total_invoice_amount?.toString() || '',
+    total_amount:
+      editData?.total_invoice_amount != null ? Number(editData.total_invoice_amount).toFixed(2) : '',
     cash_payment: editData?.cash_payment?.toString() || '',
     upi_payment: editData?.upi_payment?.toString() || '',
     bank_payment: editData?.bank_payment?.toString() || '',
@@ -63,32 +75,55 @@ export default function NewSaleScreen({ navigation, route }: any) {
     }
   });
 
-  React.useEffect(() => {
-    const loadGrams = async () => {
-      try {
-        const res = await client.get('/settings/empty_bird_weight_g');
-        if (res.data && res.data.value !== null) {
-          setForm(f => ({ ...f, empty_bird_weight_g: res.data.value }));
-        }
-      } catch (e) {
-        console.error("Failed to load empty bird weight", e);
-      }
-    };
-    loadGrams();
-  }, []);
-
-  const updateEmptyBirdWeight = (v: string) => {
-    setForm(f => ({ ...f, empty_bird_weight_g: v }));
-  };
-
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isEditingBirds, setIsEditingBirds] = useState(false);
   const [isEditingNetWeight, setIsEditingNetWeight] = useState(false);
+  const [isEditingAmount, setIsEditingAmount] = useState(false);
   const [isEditingGrams, setIsEditingGrams] = useState(false);
+  const [calcReady, setCalcReady] = useState(!editData);
   const [errors, setErrors] = useState<any>({});
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const boot = async () => {
+      let emptyG = '40';
+      try {
+        const res = await client.get('/settings/empty_bird_weight_g');
+        if (res.data?.value != null) emptyG = String(res.data.value);
+      } catch (e) {
+        console.error('Failed to load empty bird weight', e);
+      }
+      if (cancelled) return;
+
+      if (editData) {
+        const o = inferSaleOverrides(editData, emptyG);
+        setForm((f) => ({
+          ...f,
+          empty_bird_weight_g: emptyG,
+          actual_birds: o.birds_manual ? o.birds_override : f.actual_birds,
+          net_weight: o.net_weight,
+          total_amount: o.amount_manual ? o.amount_override : f.total_amount,
+        }));
+        setIsEditingBirds(o.birds_manual);
+        setIsEditingNetWeight(o.net_manual);
+        setIsEditingAmount(o.amount_manual);
+      } else {
+        setForm((f) => ({ ...f, empty_bird_weight_g: emptyG }));
+      }
+      setCalcReady(true);
+    };
+    boot();
+    return () => {
+      cancelled = true;
+    };
+  }, [editData]);
+
+  const updateEmptyBirdWeight = (v: string) => {
+    setForm((f) => ({ ...f, empty_bird_weight_g: v }));
+  };
 
   const handleVehicleNumberChange = (text: string) => {
     let cleaned = text.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -119,51 +154,53 @@ export default function NewSaleScreen({ navigation, route }: any) {
 
 
   React.useEffect(() => {
-    if (!isEditingBirds) {
-      const boxesCount = parseInt(form.boxes) || 0;
-      const birdsPerBox = parseInt(form.birds_per_box) || 0;
-      if (boxesCount > 0 || birdsPerBox > 0) {
-        setForm(f => ({ ...f, actual_birds: (boxesCount * birdsPerBox).toString() }));
-      }
+    if (!calcReady || isEditingBirds) return;
+    const boxesCount = parseInt(form.boxes) || 0;
+    const birdsPerBox = parseInt(form.birds_per_box) || 0;
+    if (boxesCount > 0 || birdsPerBox > 0) {
+      setForm((f) => ({ ...f, actual_birds: (boxesCount * birdsPerBox).toString() }));
     }
-  }, [form.boxes, form.birds_per_box, isEditingBirds]);
+  }, [form.boxes, form.birds_per_box, isEditingBirds, calcReady]);
 
   React.useEffect(() => {
-    if (!isEditingNetWeight) {
-      const wBridge = parseFloat(form.weighbridge_weight) || 0;
-      const birds = parseInt(form.actual_birds) || 0;
-      if (wBridge > 0 || birds > 0) {
-        const emptyWeightKg = (parseFloat(form.empty_bird_weight_g) || 40) / 1000;
-        const net = wBridge - (birds * emptyWeightKg); 
-        setForm(f => ({ ...f, net_weight: Math.max(0, net).toFixed(2) }));
-      }
+    if (!calcReady || isEditingNetWeight) return;
+    const wBridge = parseFloat(form.weighbridge_weight) || 0;
+    const birds = parseInt(form.actual_birds) || 0;
+    if (wBridge > 0 || birds > 0) {
+      const emptyWeightKg = (parseFloat(form.empty_bird_weight_g) || 40) / 1000;
+      const net = wBridge - birds * emptyWeightKg;
+      setForm((f) => ({ ...f, net_weight: Math.max(0, net).toFixed(2) }));
     }
-  }, [form.weighbridge_weight, form.actual_birds, form.empty_bird_weight_g, isEditingNetWeight]);
+  }, [form.weighbridge_weight, form.actual_birds, form.empty_bird_weight_g, isEditingNetWeight, calcReady]);
 
   React.useEffect(() => {
+    if (!calcReady) return;
     const netWeight = parseFloat(form.net_weight) || 0;
     const weightRate = parseFloat(form.weight_rate) || 0;
-    const weightAmount = netWeight * weightRate;
+    const weightAmount = round2(netWeight * weightRate);
 
     const boxes = parseInt(form.boxes) || 0;
     const boxRate = parseFloat(form.box_rate) || 0;
-    const boxAmount = boxes * boxRate;
+    const boxAmount = round2(boxes * boxRate);
+    const autoTotal = round2(weightAmount + boxAmount);
 
-    const total = weightAmount + boxAmount;
-
-    if (
-      form.weight_amount !== weightAmount.toFixed(2) ||
-      form.box_amount !== boxAmount.toFixed(2) ||
-      form.total_amount !== total.toFixed(2)
-    ) {
-      setForm(f => ({
+    setForm((f) => {
+      const nextTotal = isEditingAmount ? f.total_amount : autoTotal.toFixed(2);
+      if (
+        f.weight_amount === weightAmount.toFixed(2) &&
+        f.box_amount === boxAmount.toFixed(2) &&
+        f.total_amount === nextTotal
+      ) {
+        return f;
+      }
+      return {
         ...f,
         weight_amount: weightAmount.toFixed(2),
         box_amount: boxAmount.toFixed(2),
-        total_amount: total.toFixed(2)
-      }));
-    }
-  }, [form.net_weight, form.weight_rate, form.boxes, form.box_rate]);
+        total_amount: nextTotal,
+      };
+    });
+  }, [form.net_weight, form.weight_rate, form.boxes, form.box_rate, isEditingAmount, calcReady]);
 
   const mutation = useMutation({
     mutationFn: (saleData: any) => {
@@ -225,7 +262,7 @@ export default function NewSaleScreen({ navigation, route }: any) {
 
   const handleSave = () => {
     const newErrors: any = {};
-    if (!form.customer_id) newErrors.customer_id = "Supplier is required";
+    if (!form.customer_id) newErrors.customer_id = "Sale party is required";
     if (!form.driver_id && !form.driver_name) newErrors.driver_id = "Driver is required";
     const vehicleRegex = /^[A-Za-z]{2}-\d{2}-[A-Za-z]{1,2}-\d{4}$/;
     if (!form.vehicle_number) {
@@ -305,7 +342,7 @@ export default function NewSaleScreen({ navigation, route }: any) {
         <View className="mb-5">
           <View className="flex-row items-center mb-3">
             <User color="#006948" size={20} className="mr-2" />
-            <Text className="text-sm font-semibold text-[#006948]">Supplier Details</Text>
+            <Text className="text-sm font-semibold text-[#006948]">Sale Party Details</Text>
           </View>
           
           <View className="space-y-3">
@@ -345,16 +382,16 @@ export default function NewSaleScreen({ navigation, route }: any) {
                 )}
               </View>
               <View className="md:w-[48%]">
-                <Text className="text-xs font-medium text-gray-700 mb-1">Supplier</Text>
+                <Text className="text-xs font-medium text-gray-700 mb-1">Sale Party</Text>
                 <View style={{ zIndex: 50 }}>
                   <PartySearchDropdown
-                    parties={parties?.filter((p: any) => (p.type === 'SUPPLIER' || p.type === 'BOTH') && p.is_active !== false)}
+                    parties={parties?.filter((p: any) => (p.type === 'SALE' || p.type === 'BOTH') && p.is_active !== false)}
                     value={form.customer_id}
                     onSelect={(id: string) => {
                       setForm({...form, customer_id: id});
                       setErrors({...errors, customer_id: null});
                     }}
-                    placeholder="Search Supplier (min 2 chars)..."
+                    placeholder="Search Sale Party (min 2 chars)..."
                     error={errors.customer_id}
                   />
                 </View>
@@ -455,7 +492,7 @@ export default function NewSaleScreen({ navigation, route }: any) {
             <View className="w-[48%]">
               <View className="flex-row items-center justify-between mb-1">
                 <Text className="text-xs font-medium text-gray-700">Total Birds Count</Text>
-                {!isEditingBirds && (
+                {isEditing && !isEditingBirds && (
                   <TouchableOpacity onPress={() => setIsEditingBirds(true)} className="flex-row items-center">
                     <Pencil color="#006948" size={12} className="mr-1" />
                     <Text className="text-xs font-medium text-[#006948]">Edit</Text>
@@ -467,7 +504,7 @@ export default function NewSaleScreen({ navigation, route }: any) {
                 keyboardType="numeric" 
                 value={form.actual_birds}
                 onChangeText={(v) => setForm({...form, actual_birds: v})}
-                editable={isEditingBirds}
+                editable={isEditing && isEditingBirds}
                 className={`w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm font-bold ${!isEditingBirds ? 'bg-gray-100 text-gray-500' : 'bg-white text-gray-900'}`}
               />
               {isEditingBirds && (
@@ -514,7 +551,11 @@ export default function NewSaleScreen({ navigation, route }: any) {
                 placeholder="0.0"
                 keyboardType="numeric"
                 value={form.weighbridge_weight}
-                onChangeText={(v) => { setForm({...form, weighbridge_weight: v}); setErrors({...errors, weighbridge_weight: null}); }}
+                onChangeText={(v) => {
+                  setForm({ ...form, weighbridge_weight: v });
+                  setIsEditingNetWeight(false);
+                  setErrors({ ...errors, weighbridge_weight: null });
+                }}
                 className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm font-bold"
               />
               {errors.weighbridge_weight && <Text className="text-red-500 text-xs mt-1">{errors.weighbridge_weight}</Text>}
@@ -524,25 +565,32 @@ export default function NewSaleScreen({ navigation, route }: any) {
           <View className="mb-3">
             <View className="flex-row justify-between items-center mb-1">
               <Text className="text-xs font-medium text-gray-700">Net Weight (kg)</Text>
-              {!isEditingNetWeight && (
+              {isEditing && !isEditingNetWeight && (
                 <TouchableOpacity onPress={() => setIsEditingNetWeight(true)} className="flex-row items-center">
                   <Pencil color="#006948" size={12} className="mr-1" />
                   <Text className="text-xs font-medium text-[#006948]">Edit</Text>
                 </TouchableOpacity>
               )}
             </View>
-            <TextInput 
-              placeholder="0.00" 
-              keyboardType="numeric" 
+            <TextInput
+              placeholder="0.00"
+              keyboardType="numeric"
               value={form.net_weight}
-              onChangeText={(v) => setForm({...form, net_weight: v})}
-              editable={isEditingNetWeight}
-              className={`w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm font-bold ${!isEditingNetWeight ? 'bg-gray-100 text-gray-500' : 'bg-white text-gray-900'}`}
+              onChangeText={(v) => {
+                const formatted = v.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                setForm({ ...form, net_weight: formatted });
+                setIsEditingNetWeight(true);
+              }}
+              editable={isEditing && isEditingNetWeight}
+              className={`w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm font-bold ${
+                !isEditingNetWeight ? 'bg-gray-100 text-gray-500' : 'bg-white text-gray-900'
+              }`}
+              style={{ outline: 'none' } as any}
             />
             {!isEditingNetWeight ? (
-              <View className="flex-row items-center mt-1">
-                <Text className="text-[10px] text-gray-500">Auto-calculated: Weighbridge - (Total Birds × </Text>
-                {isEditingGrams ? (
+              <View className="flex-row items-center mt-1 flex-wrap">
+                <Text className="text-[10px] text-gray-500">Auto: Weighbridge − (Total Birds × </Text>
+                {isEditing && isEditingGrams ? (
                   <TextInput
                     value={form.empty_bird_weight_g}
                     onChangeText={updateEmptyBirdWeight}
@@ -551,16 +599,22 @@ export default function NewSaleScreen({ navigation, route }: any) {
                     autoFocus
                     className="p-0 text-[10px] font-bold text-gray-700 border-b border-[#006948] w-6 text-center"
                   />
-                ) : (
+                ) : isEditing ? (
                   <TouchableOpacity onPress={() => setIsEditingGrams(true)} className="flex-row items-center">
                     <Text className="text-[10px] font-bold text-[#006948] mr-1">{form.empty_bird_weight_g}g</Text>
                     <Edit2 color="#006948" size={10} />
                   </TouchableOpacity>
+                ) : (
+                  <Text className="text-[10px] font-bold text-gray-600">{form.empty_bird_weight_g}g</Text>
                 )}
                 <Text className="text-[10px] text-gray-500">)</Text>
               </View>
             ) : (
-              <TouchableOpacity onPress={() => setIsEditingNetWeight(false)} className="mt-2 self-end">
+              <TouchableOpacity
+                onPress={() => setIsEditingNetWeight(false)}
+                className="mt-2 self-end"
+                disabled={!isEditing}
+              >
                 <Text className="text-xs font-medium text-gray-500">Cancel Edit (Auto Calculate)</Text>
               </TouchableOpacity>
             )}
@@ -569,13 +623,39 @@ export default function NewSaleScreen({ navigation, route }: any) {
 
         {/* Total Calculation */}
         <View className="mb-5">
-          <Text className="text-xs font-medium text-gray-700 mb-1">Total Sale Amount</Text>
-          <TextInput 
-            placeholder="0.00" 
+          <View className="flex-row justify-between items-center mb-1">
+            <Text className="text-xs font-medium text-gray-700">Total Sale Amount</Text>
+            {isEditing && !isEditingAmount && (
+              <TouchableOpacity onPress={() => setIsEditingAmount(true)} className="flex-row items-center">
+                <Pencil color="#006948" size={12} className="mr-1" />
+                <Text className="text-xs font-medium text-[#006948]">Edit</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <TextInput
+            placeholder="0.00"
+            keyboardType="numeric"
             value={form.total_amount}
-            editable={false}
-            className="w-full px-3 py-2.5 bg-gray-100 border border-gray-300 rounded-md text-[#006948] font-bold text-lg" 
+            onChangeText={(v) => {
+              const formatted = v.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+              setForm({ ...form, total_amount: formatted });
+              setIsEditingAmount(true);
+            }}
+            editable={isEditing && isEditingAmount}
+            className={`w-full px-3 py-2.5 border border-gray-300 rounded-md text-[#006948] font-bold text-lg ${
+              !isEditingAmount ? 'bg-gray-100' : 'bg-white'
+            }`}
+            style={{ outline: 'none' } as any}
           />
+          {isEditingAmount ? (
+            <TouchableOpacity onPress={() => setIsEditingAmount(false)} className="mt-2 self-end" disabled={!isEditing}>
+              <Text className="text-xs font-medium text-gray-500">Cancel Edit (Auto Calculate)</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text className="text-[10px] text-gray-500 mt-1">
+              Updates when Net Weight, Rate, or Box charges change
+            </Text>
+          )}
         </View>
 
         {errorMsg ? (

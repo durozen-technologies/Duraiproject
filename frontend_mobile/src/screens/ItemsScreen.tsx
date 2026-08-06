@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Plus, RefreshCcw, Box } from 'lucide-react-native';
+import { Search, Plus, RefreshCcw, Box, ArrowLeft } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
 
@@ -45,7 +45,15 @@ export default function ItemsScreen({ navigation, route }: any) {
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
       <View className="px-4 py-3 bg-white border-b border-gray-200 flex-row items-center justify-between">
-        <Text className="text-lg font-bold text-gray-900">Items</Text>
+        <View className="flex-row items-center flex-1 mr-2">
+          <TouchableOpacity
+            onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MainTabs', { screen: 'Dashboard' }))}
+            className="mr-3"
+          >
+            <ArrowLeft color="#111827" size={24} />
+          </TouchableOpacity>
+          <Text className="text-lg font-bold text-gray-900">Items</Text>
+        </View>
         <View className="flex-row items-center space-x-2">
           <TouchableOpacity 
             onPress={onRefresh}

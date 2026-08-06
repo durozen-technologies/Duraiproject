@@ -13,7 +13,7 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Plus, Trash2, Save, Printer, Pencil, ShoppingCart, Bird, Scale, IndianRupee, Wallet, Landmark, X } from 'lucide-react-native';
+import { ArrowLeft, Plus, Trash2, Save, Pencil, ShoppingCart, Bird, Scale, IndianRupee, Wallet, Landmark, X } from 'lucide-react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import PartySearchDropdown from '../components/PartySearchDropdown';
 import DriverSearchDropdown from '../components/DriverSearchDropdown';
@@ -392,7 +392,7 @@ export default function BillEntryScreen({ navigation }: any) {
     [parties]
   );
   const saleParties = useMemo(
-    () => parties?.filter((p: any) => (p.type === 'SUPPLIER' || p.type === 'BOTH') && p.is_active !== false) || [],
+    () => parties?.filter((p: any) => (p.type === 'SALE' || p.type === 'BOTH') && p.is_active !== false) || [],
     [parties]
   );
   const activeDrivers = useMemo(() => drivers?.filter((d: any) => d.is_active) || [], [drivers]);
@@ -536,7 +536,7 @@ export default function BillEntryScreen({ navigation }: any) {
   };
 
   const saveMutation = useMutation({
-    mutationFn: async (andPrint: boolean) => {
+    mutationFn: async () => {
       const filledP = purchases.filter(isPurchaseFilled);
       const filledS = sales.filter(isSaleFilled);
       const filledE = expenses.filter(isExpenseFilled);
@@ -601,25 +601,22 @@ export default function BillEntryScreen({ navigation }: any) {
         }),
       };
 
-      const saved = isExistingBill && editDayBillId
+      return isExistingBill && editDayBillId
         ? await updateDayBill(editDayBillId, payload)
         : await createDayBill(payload);
-      return { created: saved, andPrint };
     },
-    onSuccess: ({ created, andPrint }) => {
+    onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['expensesHistory'] });
+      queryClient.invalidateQueries({ queryKey: ['expensesByBill'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['parties'] });
       queryClient.invalidateQueries({ queryKey: ['dayBills'] });
       queryClient.invalidateQueries({ queryKey: ['dayBill', editDayBillId] });
 
-      const msg = andPrint
-        ? `${isExistingBill ? 'Updated' : 'Saved'} as ${created.bill_number}. Print coming soon.`
-        : `${isExistingBill ? 'Updated' : 'Saved'} as ${created.bill_number}`;
-      setSuccessMsg(msg);
+      setSuccessMsg(`${isExistingBill ? 'Updated' : 'Saved'} as ${created.bill_number}`);
       setErrorMsg('');
       // Always leave the screen after save/update (same pattern as NewPurchaseScreen).
       setTimeout(() => {
@@ -644,6 +641,7 @@ export default function BillEntryScreen({ navigation }: any) {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['expensesByBill'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['parties'] });
       if (Platform.OS === 'web') {
@@ -659,9 +657,9 @@ export default function BillEntryScreen({ navigation }: any) {
     },
   });
 
-  const handleSave = (andPrint = false) => {
+  const handleSave = () => {
     if (!validate()) return;
-    saveMutation.mutate(andPrint);
+    saveMutation.mutate();
   };
 
   const SummaryCards = ({ items, theme = 'green' }: {
@@ -931,7 +929,11 @@ export default function BillEntryScreen({ navigation }: any) {
         </Td>
         <Td w={100}><NumInput value={r.cash_amount} onChangeText={(v) => updateExpense(r.key, { cash_amount: v })} error={!!rowErrors[`e-${r.key}-amt`]} /></Td>
         <Td w={100}><NumInput value={r.upi_amount} onChangeText={(v) => updateExpense(r.key, { upi_amount: v })} error={!!rowErrors[`e-${r.key}-amt`]} /></Td>
-        <Td w={100} bg="bg-[#f7faf8]"><Text className="text-center font-bold text-gray-800 text-sm">{formatMoney(d.total)}</Text></Td>
+        <Td w={100} bg="bg-[#f7faf8]">
+          <View className="h-10 justify-center">
+            <Text className="text-center font-bold text-gray-800 text-sm">{formatMoney(d.total)}</Text>
+          </View>
+        </Td>
         <Td w={180}>
           <TextInput
             className="bg-white border border-[#d8e0dc] rounded px-2 py-1.5 text-sm w-full h-10"
@@ -1225,7 +1227,7 @@ export default function BillEntryScreen({ navigation }: any) {
                       </Text>
                     </View>
                     <View className="flex-row justify-between">
-                      <Text className="text-sm font-semibold text-gray-700">Remaining Weight</Text>
+                      <Text className="text-sm font-semibold text-gray-700">Total Remaining Weight</Text>
                       <Text className="text-sm font-bold text-[#0b4d3a]">{formatMoney(summary.remainingWeight)} Kg</Text>
                     </View>
                   </View>
@@ -1290,20 +1292,12 @@ export default function BillEntryScreen({ navigation }: any) {
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity
-            onPress={() => handleSave(false)}
+            onPress={handleSave}
             disabled={saveMutation.isPending || (isExistingBill && editLoading && !prefilled)}
             className="bg-[#0b4d3a] px-4 py-3 rounded-md flex-row items-center"
           >
             {saveMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Save size={16} color="#fff" />}
             <Text className="text-white font-bold text-sm ml-2">{isExistingBill ? 'Update Bill' : 'Save'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => handleSave(true)}
-            disabled={saveMutation.isPending || (isExistingBill && editLoading && !prefilled)}
-            className="bg-[#0f6b48] px-4 py-3 rounded-md flex-row items-center"
-          >
-            <Printer size={16} color="#fff" />
-            <Text className="text-white font-bold text-sm ml-2">{isExistingBill ? 'Update & Print' : 'Save & Print'}</Text>
           </TouchableOpacity>
         </View>
       ) : null}

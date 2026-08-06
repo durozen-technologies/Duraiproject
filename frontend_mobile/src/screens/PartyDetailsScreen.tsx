@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import client from '../api/client';
-import PartyDetailsModal from '../components/PartyDetailsModal';
+import PartyFormModal from '../components/PartyFormModal';
 import { formatDateToDDMMYYYY } from '../utils/formatDate';
 
 type DateFilter = 'today' | 'week' | 'month' | 'year' | 'custom' | 'all';
@@ -34,11 +34,11 @@ export default function PartyDetailsScreen({ navigation, route }: any) {
   });
 
   const showsPurchase = party?.type === 'PURCHASER' || party?.type === 'BOTH';
-  const showsSale = party?.type === 'SUPPLIER' || party?.type === 'BOTH';
+  const showsSale = party?.type === 'SALE' || party?.type === 'BOTH';
 
   useEffect(() => {
     if (!party) return;
-    if (party.type === 'SUPPLIER') {
+    if (party.type === 'SALE') {
       setActiveTab('SALE');
       return;
     }
@@ -358,15 +358,6 @@ export default function PartyDetailsScreen({ navigation, route }: any) {
                   <Text className="text-base font-bold text-gray-900">
                     ₹{formatAmount(Math.abs((activeTab === 'PURCHASE' ? bill.purchase_amount : bill.total_invoice_amount) || 0))}
                   </Text>
-                  {bill.balance_amount > 0 ? (
-                    <View className="bg-red-50 px-2 py-0.5 rounded-md mt-1 border border-red-100">
-                      <Text className="text-[10px] text-red-600 font-bold tracking-wide">DUE ₹{formatAmount(bill.balance_amount)}</Text>
-                    </View>
-                  ) : (
-                    <View className="bg-green-50 px-2 py-0.5 rounded-md mt-1 border border-green-100">
-                      <Text className="text-[10px] text-[#006948] font-bold tracking-wide">PAID</Text>
-                    </View>
-                  )}
                 </View>
               </TouchableOpacity>
             );
@@ -374,15 +365,16 @@ export default function PartyDetailsScreen({ navigation, route }: any) {
         )}
       </ScrollView>
 
-      <PartyDetailsModal
-        isVisible={isEditOpen}
+      <PartyFormModal
+        visible={isEditOpen}
+        mode="edit"
+        party={party}
         onClose={() => {
           setIsEditOpen(false);
           refetchParty();
           if (showsPurchase) refetchPurchases();
           if (showsSale) refetchSales();
         }}
-        party={party}
       />
     </SafeAreaView>
   );

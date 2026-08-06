@@ -16,6 +16,25 @@ export interface ExpenseEntry {
   total_amount: number;
   note?: string;
   spent_at: string;
+  day_bill_id?: string | null;
+}
+
+export interface BillExpenseLine {
+  id: string;
+  expense_name: string;
+  cash_amount: number;
+  upi_amount: number;
+  total_amount: number;
+  note?: string | null;
+}
+
+export interface BillExpenseGroup {
+  day_bill_id: string;
+  bill_number: string;
+  date: string;
+  expense_total: number;
+  item_count: number;
+  items: BillExpenseLine[];
 }
 
 export async function fetchExpenseCategories(activeOnly: boolean = true): Promise<ExpenseCategory[]> {
@@ -39,6 +58,11 @@ export async function updateExpenseCategory(id: string, updates: Partial<Expense
 
 export async function fetchExpensesHistory(limit: number = 50): Promise<ExpenseEntry[]> {
   const response = await client.get(`/expenses/?limit=${limit}`);
+  return response.data;
+}
+
+export async function fetchExpensesByBill(limit: number = 50): Promise<BillExpenseGroup[]> {
+  const response = await client.get(`/expenses/by-bill?limit=${limit}`);
   return response.data;
 }
 

@@ -103,7 +103,7 @@ export default function SalesScreen({ navigation }: any) {
       }
     } else {
       parties.forEach((p: any) => {
-        if (p.type === 'SUPPLIER' && p.is_active !== false) {
+        if (p.type === 'SALE' && p.is_active !== false) {
           totalBalance += (p.unpaid_opening_balance || 0);
         }
       });
@@ -142,7 +142,7 @@ export default function SalesScreen({ navigation }: any) {
                 onValueChange={(itemValue) => setSelectedParty(itemValue)}
               >
                 <Picker.Item label="All Parties" value="all" style={{ fontSize: 15 }} />
-                {parties?.filter((p: any) => (p.type === 'SUPPLIER' || p.type === 'BOTH') && p.is_active !== false).map((party: any) => (
+                {parties?.filter((p: any) => (p.type === 'SALE' || p.type === 'BOTH') && p.is_active !== false).map((party: any) => (
                   <Picker.Item key={party.id} label={party.name} value={party.id} style={{ fontSize: 15 }} />
                 ))}
               </Picker>

@@ -1,7 +1,7 @@
 from enum import Enum
 
 class PartyType(str, Enum):
-    SUPPLIER = "SUPPLIER"
+    SALE = "SALE"
     PURCHASER = "PURCHASER"
     BOTH = "BOTH"
 

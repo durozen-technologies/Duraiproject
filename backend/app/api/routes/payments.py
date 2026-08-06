@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from typing import List, Optional
 from pydantic import BaseModel, UUID4
-from datetime import date
+from datetime import date, datetime
+from uuid import UUID
 
 from app.api import deps
 from app.models.party import Party
@@ -32,6 +33,7 @@ class PaymentHistoryItem(BaseModel):
     id: UUID4
     party_id: UUID4
     party_name: str
+    party_nickname: Optional[str] = None
     date: date
     type: str
     cash_amount: float
@@ -39,6 +41,25 @@ class PaymentHistoryItem(BaseModel):
     bank_amount: float
     total_amount: float
     opening_applied: float = 0.0
+    created_at: Optional[datetime] = None
+
+
+async def _opening_applied_total(db: AsyncSession, party_id: UUID) -> float:
+    """Sum of collection amounts still applied to this party's opening."""
+    result = await db.execute(
+        select(func.coalesce(func.sum(PaymentTransaction.opening_applied), 0)).where(
+            PaymentTransaction.party_id == party_id
+        )
+    )
+    return round(float(result.scalar() or 0), 2)
+
+
+def _reconcile_unpaid_opening(party: Party, paid_abs: float) -> None:
+    """Set unpaid_opening = opening − remaining collection applied to opening."""
+    opening = round(float(party.opening_balance or 0), 2)
+    paid_abs = round(float(paid_abs or 0), 2)
+    signed_paid = -paid_abs if opening < 0 else paid_abs
+    party.unpaid_opening_balance = round(opening - signed_paid, 2)
 
 
 def _apply_collection_to_party(party: Party, total: float) -> tuple[TransactionType, float]:
@@ -141,7 +162,10 @@ async def get_payment_history(
     if to_date:
         query = query.where(PaymentTransaction.date <= to_date)
 
-    query = query.order_by(PaymentTransaction.date.desc())
+    query = query.order_by(
+        PaymentTransaction.date.desc(),
+        PaymentTransaction.created_at.desc(),
+    )
     result = await db.execute(query)
     transactions = result.all()
 
@@ -151,6 +175,7 @@ async def get_payment_history(
             "id": txn.id,
             "party_id": party.id,
             "party_name": party.name,
+            "party_nickname": party.nickname,
             "date": txn.date,
             "type": txn.type.value,
             "cash_amount": float(txn.cash_amount or 0),
@@ -158,6 +183,7 @@ async def get_payment_history(
             "bank_amount": float(txn.bank_amount or 0),
             "total_amount": float(txn.total_amount or 0),
             "opening_applied": float(txn.opening_applied or 0),
+            "created_at": txn.created_at,
         })
     return items
 
@@ -181,6 +207,11 @@ async def delete_collection_payment(
     _revert_collection_from_party(party, txn)
 
     await db.delete(txn)
+    await db.flush()
+    # After delete, rebuild unpaid opening from remaining payments (fixes floor after delete)
+    paid_abs = await _opening_applied_total(db, party.id)
+    _reconcile_unpaid_opening(party, paid_abs)
+
     await db.commit()
 
 
@@ -218,6 +249,10 @@ async def update_collection_payment(
     txn.date = request.date
     txn.type = txn_type
     txn.opening_applied = opening_applied
+
+    await db.flush()
+    paid_abs = await _opening_applied_total(db, party.id)
+    _reconcile_unpaid_opening(party, paid_abs)
 
     await db.commit()
     await db.refresh(txn)

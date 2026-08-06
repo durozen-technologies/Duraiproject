@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, RefreshControl, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TrendingUp, ShoppingCart, Receipt, BarChart2, Users, Truck, ChevronRight, Wallet, Edit2, FileText, X, History, FileStack, RefreshCcw, Calendar, LogOut, Box, FilePlus } from 'lucide-react-native';
+import { TrendingUp, ShoppingCart, Receipt, BarChart2, Users, Truck, ChevronRight, Wallet, Edit2, FileText, X, History, FileStack, RefreshCcw, Calendar, LogOut, Box, FilePlus, ArrowUp, ArrowDown } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -41,6 +41,19 @@ export default function DashboardScreen() {
     if (filterType === 'Single Day') {
       const start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
       const end = new Date(start.getTime() + 86400000 - 1);
+      return { start_date: start.toISOString(), end_date: end.toISOString() };
+    }
+    if (filterType === 'This Week') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const day = start.getDay();
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+      start.setDate(diff);
+      const end = new Date(start.getTime() + 7 * 86400000 - 1);
+      return { start_date: start.toISOString(), end_date: end.toISOString() };
+    }
+    if (filterType === 'This Month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
       return { start_date: start.toISOString(), end_date: end.toISOString() };
     }
     if (filterType === 'Custom' && appliedCustomStart && appliedCustomEnd) {
@@ -240,8 +253,30 @@ export default function DashboardScreen() {
           )}
 
           <TouchableOpacity
+            onPress={() => {
+              setFilterType('This Week');
+            }}
+            className={`px-5 py-2 rounded-md shadow-sm mr-2 justify-center ${filterType === 'This Week' ? 'bg-[#006948]' : 'bg-white border border-gray-300'}`}
+          >
+            <Text className={`font-semibold ${filterType === 'This Week' ? 'text-white' : 'text-gray-700'}`}>
+              This Week
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              setFilterType('This Month');
+            }}
+            className={`px-5 py-2 rounded-md shadow-sm mr-2 justify-center ${filterType === 'This Month' ? 'bg-[#006948]' : 'bg-white border border-gray-300'}`}
+          >
+            <Text className={`font-semibold ${filterType === 'This Month' ? 'text-white' : 'text-gray-700'}`}>
+              This Month
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             onPress={() => setCustomModalVisible(true)}
-            className={`px-5 py-2 rounded-md shadow-sm mr-2 ${filterType === 'Custom' ? 'bg-[#006948]' : 'bg-white border border-gray-300'}`}
+            className={`px-5 py-2 rounded-md shadow-sm mr-2 justify-center ${filterType === 'Custom' ? 'bg-[#006948]' : 'bg-white border border-gray-300'}`}
           >
             <Text className={`font-semibold ${filterType === 'Custom' ? 'text-white' : 'text-gray-700'}`}>
               {filterType === 'Custom' && appliedCustomStart && appliedCustomEnd
@@ -344,72 +379,49 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Stock */}
-        <View className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6">
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-lg font-bold text-gray-900">Stock</Text>
-            <View className="flex-row gap-2">
-              <TouchableOpacity onPress={() => setHistoryModalVisible(true)} className="p-2 bg-gray-100 rounded-full">
-                <History color="#4b5563" size={16} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={openEditModal} className="p-2 bg-green-50 rounded-full border border-green-100">
-                <Edit2 color="#006948" size={16} />
-              </TouchableOpacity>
-            </View>
-          </View>
 
-          <View className="flex-row justify-between items-end mb-4">
-            <View>
-              <Text className="text-xs font-semibold text-gray-600">Purchase Bird Count</Text>
-              <Text className="text-xl font-bold text-gray-900">{stats.birds_purchased}</Text>
-            </View>
-            <View className="items-end">
-              <Text className="text-xs font-semibold text-gray-600">Net Weight</Text>
-              <Text className="text-base font-bold text-[#006948]">{formatInrAmount(stats.weight_purchased)} kg</Text>
-            </View>
-          </View>
-
-          <View className="h-px bg-gray-100 mb-4 w-full" />
-
-          <View className="flex-row justify-between items-end">
-            <View>
-              <Text className="text-xs font-semibold text-gray-600">Sale Bird Count</Text>
-              <Text className="text-xl font-bold text-gray-900">{stats.birds_sold}</Text>
-            </View>
-            <View className="items-end">
-              <Text className="text-xs font-semibold text-gray-600">Net Weight</Text>
-              <Text className="text-base font-bold text-[#006948]">{formatInrAmount(stats.weight_sold)} kg</Text>
-            </View>
-          </View>
-        </View>
-
+        {/* Outstanding */}
         {/* Outstanding */}
         <View className="mb-10">
           <Text className="text-lg font-bold text-gray-900 mb-3">Outstanding</Text>
-          <View className="bg-white p-3 rounded-xl border border-gray-200 flex-row items-center justify-between shadow-sm mb-2">
-            <View className="flex-row items-center">
-              <View className="w-10 h-10 rounded-lg bg-orange-400 items-center justify-center mr-3">
-                <Users color="white" size={20} />
+          <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-2">
+            {/* Sale To Receive */}
+            <View className="p-5 flex-row justify-between items-start border-b border-gray-100">
+              <View className="flex-row flex-1 mr-4">
+                <View className="w-6 h-6 rounded-full bg-orange-100 mt-1 mr-3 flex-shrink-0" />
+                <View className="flex-1">
+                  <Text className="text-lg font-bold text-[#1e293b] mb-1">Sale To Receive</Text>
+                  <Text className="text-xs text-gray-500 mb-3">Amount expected to be received from your customers.</Text>
+                  <View className="self-start flex-row items-center bg-orange-50 px-2 py-1 rounded-full border border-orange-100">
+                    <ArrowUp color="#f97316" size={12} className="mr-1" />
+                    <Text className="text-[10px] font-bold text-orange-500">Incoming</Text>
+                  </View>
+                </View>
               </View>
-              <View className="ml-3">
-                <Text className="text-xs font-semibold text-gray-600">Current Purchaser Dues</Text>
-                <Text className="text-base font-bold text-gray-900">₹{formatInrAmount(stats.purchaser_dues)}</Text>
+              <View className="items-end justify-center pt-1">
+                <Text className="text-xl font-bold text-[#0f172a] mb-1">₹{formatInrAmount(stats.purchaser_dues)}</Text>
+                <Text className="text-xs text-gray-500">Outstanding</Text>
               </View>
             </View>
-            <ChevronRight color="#9ca3af" size={20} />
-          </View>
 
-          <View className="bg-white p-3 rounded-xl border border-gray-200 flex-row items-center justify-between shadow-sm">
-            <View className="flex-row items-center">
-              <View className="w-10 h-10 rounded-lg bg-gray-200 items-center justify-center mr-3">
-                <Truck color="#374151" size={20} />
+            {/* Purchase To Pay */}
+            <View className="p-5 flex-row justify-between items-start">
+              <View className="flex-row flex-1 mr-4">
+                <View className="w-6 h-6 rounded-full bg-slate-200 mt-1 mr-3 flex-shrink-0" />
+                <View className="flex-1">
+                  <Text className="text-lg font-bold text-[#1e293b] mb-1">Purchase To Pay</Text>
+                  <Text className="text-xs text-gray-500 mb-3">Amount expected to be paid to your vendors.</Text>
+                  <View className="self-start flex-row items-center bg-slate-50 px-2 py-1 rounded-full border border-slate-200">
+                    <ArrowDown color="#64748b" size={12} className="mr-1" />
+                    <Text className="text-[10px] font-bold text-slate-500">Outgoing</Text>
+                  </View>
+                </View>
               </View>
-              <View>
-                <Text className="text-xs font-semibold text-gray-600">Current Supplier Payables</Text>
-                <Text className="text-base font-bold text-gray-900">₹{formatInrAmount(stats.supplier_payables)}</Text>
+              <View className="items-end justify-center pt-1">
+                <Text className="text-xl font-bold text-[#0f172a] mb-1">₹{formatInrAmount(stats.supplier_payables)}</Text>
+                <Text className="text-xs text-gray-500">Outstanding</Text>
               </View>
             </View>
-            <ChevronRight color="#9ca3af" size={20} />
           </View>
         </View>
 

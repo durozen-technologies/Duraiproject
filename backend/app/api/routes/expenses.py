@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from pydantic import BaseModel, UUID4, Field
-from datetime import datetime
+from datetime import datetime, date
 
 from app.api import deps
 from app.models.expense import ExpenseCategory, Expense
+from app.models.day_bill import DayBill
 
 router = APIRouter()
 
@@ -48,9 +50,28 @@ class ExpenseResponse(ExpenseBase):
     id: UUID4
     spent_at: datetime
     total_amount: float
+    day_bill_id: Optional[UUID4] = None
 
     class Config:
         from_attributes = True
+
+
+class BillExpenseLine(BaseModel):
+    id: UUID4
+    expense_name: str
+    cash_amount: float
+    upi_amount: float
+    total_amount: float
+    note: Optional[str] = None
+
+
+class BillExpenseGroup(BaseModel):
+    day_bill_id: UUID4
+    bill_number: str
+    date: date
+    expense_total: float
+    item_count: int
+    items: List[BillExpenseLine]
 
 # --- Routes for Categories ---
 
@@ -92,9 +113,52 @@ async def update_expense_category(category_id: UUID4, category_update: ExpenseCa
 
 # --- Routes for Expenses ---
 
+@router.get("/by-bill", response_model=List[BillExpenseGroup])
+async def get_expenses_by_bill(limit: int = 50, db: AsyncSession = Depends(deps.get_db)):
+    """Day-bill expense history: one row per bill with total; items nested for drill-down."""
+    result = await db.execute(
+        select(DayBill)
+        .where(DayBill.expense_total > 0)
+        .options(selectinload(DayBill.expenses))
+        .order_by(desc(DayBill.date), desc(DayBill.created_at))
+        .limit(limit)
+    )
+    bills = result.scalars().unique().all()
+    groups: List[BillExpenseGroup] = []
+    for bill in bills:
+        items = sorted(
+            bill.expenses or [],
+            key=lambda e: (e.created_at or e.spent_at),
+            reverse=True,
+        )
+        if not items:
+            continue
+        groups.append(
+            BillExpenseGroup(
+                day_bill_id=bill.id,
+                bill_number=bill.bill_number,
+                date=bill.date,
+                expense_total=float(bill.expense_total or sum(float(i.total_amount or 0) for i in items)),
+                item_count=len(items),
+                items=[
+                    BillExpenseLine(
+                        id=e.id,
+                        expense_name=e.expense_name,
+                        cash_amount=float(e.cash_amount or 0),
+                        upi_amount=float(e.upi_amount or 0),
+                        total_amount=float(e.total_amount or 0),
+                        note=e.note,
+                    )
+                    for e in items
+                ],
+            )
+        )
+    return groups
+
+
 @router.get("/", response_model=List[ExpenseResponse])
 async def get_expenses(limit: int = 50, db: AsyncSession = Depends(deps.get_db)):
-    query = select(Expense).order_by(desc(Expense.spent_at)).limit(limit)
+    query = select(Expense).order_by(desc(Expense.spent_at), desc(Expense.created_at)).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
 

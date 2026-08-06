@@ -3,14 +3,12 @@ import { Platform, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LayoutGrid, ShoppingCart, Tag, Users, Receipt, Truck, FileText } from 'lucide-react-native';
+import { LayoutGrid, Users, Receipt, Truck, FileText, Wallet } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 
 import DashboardScreen from '../screens/DashboardScreen';
 import BillsScreen from '../screens/BillsScreen';
 import PartiesScreen from '../screens/PartiesScreen';
-import PurchasesScreen from '../screens/PurchasesScreen';
-import SalesScreen from '../screens/SalesScreen';
 import NewPurchaseScreen from '../screens/NewPurchaseScreen';
 import NewSaleScreen from '../screens/NewSaleScreen';
 import NewPartyScreen from '../screens/NewPartyScreen';
@@ -40,8 +38,7 @@ export const linking = {
         screens: {
           Dashboard: 'dashboard',
           Bill: 'bills',
-          Purchases: 'purchases',
-          Sales: 'sales',
+          Collection: 'collection',
           Parties: 'parties',
           Expenses: 'expenses',
           Drivers: 'drivers',
@@ -113,18 +110,11 @@ function MainTabNavigator() {
           tabBarIcon: ({ color }) => <FileText color={color} size={24} />,
         }}
       />
-      <Tab.Screen 
-        name="Purchases" 
-        component={PurchasesScreen} 
+      <Tab.Screen
+        name="Collection"
+        component={CollectionPaymentScreen}
         options={{
-          tabBarIcon: ({ color }) => <ShoppingCart color={color} size={24} />,
-        }}
-      />
-      <Tab.Screen 
-        name="Sales" 
-        component={SalesScreen} 
-        options={{
-          tabBarIcon: ({ color }) => <Tag color={color} size={24} />,
+          tabBarIcon: ({ color }) => <Wallet color={color} size={24} />,
         }}
       />
       <Tab.Screen 

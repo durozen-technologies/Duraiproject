@@ -1,5 +1,6 @@
 import io
 from datetime import date
+from pathlib import Path
 from typing import Optional
 from uuid import UUID
 
@@ -18,9 +19,13 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+_UNICODE_FONT: Optional[str] = None
+_UNICODE_FONT_TRIED = False
 
 
 def _fmt_inr(amount: float) -> str:
@@ -49,13 +54,208 @@ def _fmt_weight(value: float) -> str:
 def _fmt_rate(value: float) -> str:
     return f"Rs.{_fmt_inr(value)}"
 
+
+def _normalize_lang(language: Optional[str]) -> str:
+    lang = (language or "en").strip().lower()
+    return "ta" if lang in ("ta", "tamil") else "en"
+
+
+def _party_display_name(party: Optional[Party], language: str) -> str:
+    if not party:
+        return "Unknown"
+    if language == "ta":
+        tamil = (getattr(party, "tamil_name", None) or "").strip()
+        if tamil:
+            return tamil
+    return (party.name or "").strip() or "Unknown"
+
+
+def _has_tamil_text(value: str) -> bool:
+    return any("\u0b80" <= ch <= "\u0bff" for ch in (value or ""))
+
+
+def _unicode_font_name() -> Optional[str]:
+    """Register Noto Sans Tamil (Duro_POS-style) once for PDF Tamil text."""
+    global _UNICODE_FONT, _UNICODE_FONT_TRIED
+    if _UNICODE_FONT_TRIED:
+        return _UNICODE_FONT
+    _UNICODE_FONT_TRIED = True
+
+    # reports.py -> routes -> api -> app
+    app_dir = Path(__file__).resolve().parents[2]
+    bundled = app_dir / "assets" / "fonts"
+    candidates: list[tuple[Path, Optional[int]]] = [
+        (bundled / "NotoSansTamil-Regular.ttf", None),
+        (bundled / "NotoSansTamil.ttf", None),
+        (bundled / "Nirmala.ttf", None),
+        (Path(r"C:\Windows\Fonts\Nirmala.ttf"), None),
+        (Path(r"C:\Windows\Fonts\Nirmala.ttc"), 0),
+        (Path(r"C:\Windows\Fonts\Nirmala.ttc"), 1),
+        (Path(r"C:\Windows\Fonts\latha.ttf"), None),
+        (Path("/usr/share/fonts/truetype/noto/NotoSansTamil-Regular.ttf"), None),
+        (Path("/usr/share/fonts/truetype/noto/NotoSansTamilUI-Regular.ttf"), None),
+        (Path("/usr/share/fonts/truetype/noto/NotoSerifTamil-Regular.ttf"), None),
+    ]
+    for path, subfont_index in candidates:
+        if not path.exists():
+            continue
+        try:
+            kwargs = {}
+            if subfont_index is not None:
+                kwargs["subfontIndex"] = subfont_index
+            pdfmetrics.registerFont(TTFont("ReportUnicode", str(path), **kwargs))
+            # Smoke-check Tamil glyph metrics (avoids silent broken faces)
+            if pdfmetrics.stringWidth("அ", "ReportUnicode", 10) <= 0:
+                continue
+            _UNICODE_FONT = "ReportUnicode"
+            return _UNICODE_FONT
+        except Exception:
+            continue
+    return None
+
+
+def _party_name_cell(name: str, language: str, font_size: int = 8):
+    """Paragraph with Tamil-capable font whenever Tamil text is present."""
+    use_tamil = language == "ta" or _has_tamil_text(name)
+    font = _unicode_font_name() if use_tamil else None
+    if not font:
+        return name
+    style = ParagraphStyle(
+        "PartyNameCell",
+        fontName=font,
+        fontSize=font_size,
+        leading=font_size + 3,
+    )
+    safe = (name or "").replace("&", "&amp;").replace("<", "&lt;")
+    return Paragraph(safe, style)
+
+
+def _party_title_paragraph(name: str, language: str, base_style: ParagraphStyle) -> Paragraph:
+    use_tamil = language == "ta" or _has_tamil_text(name)
+    font = _unicode_font_name() if use_tamil else None
+    style = ParagraphStyle(
+        "PartyTitleUnicode",
+        parent=base_style,
+        fontName=font or base_style.fontName,
+        fontSize=base_style.fontSize,
+        leading=(base_style.fontSize or 12) + 4,
+    )
+    safe = (name or "").replace("&", "&amp;").replace("<", "&lt;")
+    return Paragraph(safe if use_tamil else safe.upper(), style)
+
+
+def _table_body_font(language: str) -> str:
+    """Latin body font for numeric/ASCII cells. Tamil names use Paragraph + unicode font."""
+    return "Helvetica"
+
+
+def _normalize_export_format(fmt: Optional[str]) -> str:
+    value = (fmt or "pdf").strip().lower()
+    if value in ("xlsx", "excel", "xls"):
+        return "xlsx"
+    return "pdf"
+
+
+def _excel_response(
+    *,
+    title: str,
+    headers: list[str],
+    rows: list[list],
+    filename: str,
+    sheet_name: str = "Report",
+    summary_rows: Optional[list[list]] = None,
+) -> StreamingResponse:
+    """Build an .xlsx workbook and return it as a download response."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (sheet_name or "Report")[:31]
+
+    header_fill = PatternFill("solid", fgColor="D9D9D9")
+    title_font = Font(bold=True, size=14)
+    header_font = Font(bold=True, size=10)
+    thin = Border(
+        left=Side(style="thin", color="CFCFCF"),
+        right=Side(style="thin", color="CFCFCF"),
+        top=Side(style="thin", color="CFCFCF"),
+        bottom=Side(style="thin", color="CFCFCF"),
+    )
+
+    col_count = max(len(headers), 1)
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=col_count)
+    title_cell = ws.cell(1, 1, title)
+    title_cell.font = title_font
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    header_row = 3
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(header_row, col, header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = thin
+
+    for r_idx, row in enumerate(rows, header_row + 1):
+        for c_idx in range(1, col_count + 1):
+            value = row[c_idx - 1] if c_idx - 1 < len(row) else ""
+            cell = ws.cell(r_idx, c_idx, value)
+            cell.border = thin
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+                cell.number_format = "#,##0.00"
+            else:
+                cell.alignment = Alignment(
+                    horizontal="left" if c_idx == 2 else "center",
+                    vertical="center",
+                )
+
+    next_row = header_row + 1 + len(rows) + 1
+    if summary_rows:
+        summary_fill = PatternFill("solid", fgColor="E8F5EE")
+        for offset, summary in enumerate(summary_rows):
+            for c_idx in range(1, col_count + 1):
+                value = summary[c_idx - 1] if c_idx - 1 < len(summary) else ""
+                cell = ws.cell(next_row + offset, c_idx, value)
+                cell.border = thin
+                cell.font = Font(bold=True)
+                cell.fill = summary_fill
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    cell.number_format = "#,##0.00"
+                    cell.alignment = Alignment(horizontal="right")
+
+    for col in range(1, col_count + 1):
+        max_len = 12
+        for row in ws.iter_rows(min_col=col, max_col=col, min_row=1, max_row=ws.max_row):
+            for cell in row:
+                if cell.value is None:
+                    continue
+                max_len = max(max_len, min(42, len(str(cell.value))))
+        ws.column_dimensions[get_column_letter(col)].width = max_len + 2
+
+    ws.row_dimensions[header_row].height = 30
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 @router.get("/purchases")
 async def generate_purchase_report(
     from_date: date,
     to_date: date,
     party_id: Optional[UUID] = None,
+    language: Optional[str] = Query("en", description="Party name language: en or ta"),
+    format: Optional[str] = Query("pdf", description="Export format: pdf or xlsx"),
     db: AsyncSession = Depends(get_db)
 ):
+    lang = _normalize_lang(language)
+    export_fmt = _normalize_export_format(format)
     query = select(Purchase).options(selectinload(Purchase.party)).where(
         and_(Purchase.date >= from_date, Purchase.date <= to_date)
     ).order_by(Purchase.date)
@@ -65,6 +265,49 @@ async def generate_purchase_report(
         
     result = await db.execute(query)
     purchases = result.scalars().all()
+
+    date_label = f"{from_date.strftime('%d-%m-%Y')} to {to_date.strftime('%d-%m-%Y')}"
+    file_stem = f"purchase_report_{from_date.strftime('%Y%m%d')}_{to_date.strftime('%Y%m%d')}"
+
+    if export_fmt == "xlsx":
+        headers = [
+            "Date", "Purchaser Name", "Vehicle No", "Bill No", "Driver Name",
+            "Total Box", "Total Birds", "Weighbridge Weight(Kg)", "Net Weight",
+            "Avg Wt", "Rate (Rs.)", "Amount (Rs.)", "Paid Cash (Rs.)", "Paid UPI (Rs.)",
+            "Total Paid Amount (Rs.)", "Balance (Rs.)",
+        ]
+        excel_rows = []
+        for p in purchases:
+            net_wt = float(p.net_weight or 0)
+            birds = int(p.actual_birds or 0)
+            calc_avg_wt = (net_wt / birds) if birds > 0 else 0.0
+            cash = float(p.cash_payment or 0)
+            upi = float(p.upi_payment or 0)
+            excel_rows.append([
+                p.date.strftime("%d-%m-%Y") if p.date else "-",
+                _party_display_name(p.party, lang),
+                p.vehicle_number or "-",
+                p.bill_number or "-",
+                p.driver_name or "-",
+                int(p.total_boxes or 0),
+                birds,
+                float(p.weighbridge_weight or 0),
+                net_wt,
+                round(calc_avg_wt, 2),
+                float(p.purchase_rate or 0),
+                float(p.purchase_amount or 0),
+                cash,
+                upi,
+                round(cash + upi, 2),
+                float(p.balance_amount or 0),
+            ])
+        return _excel_response(
+            title=f"Purchase Register ({date_label})",
+            headers=headers,
+            rows=excel_rows,
+            filename=f"{file_stem}.xlsx",
+            sheet_name="Purchases",
+        )
     
     # Generate PDF in memory
     buffer = io.BytesIO()
@@ -83,7 +326,7 @@ async def generate_purchase_report(
     title_style = styles['Heading1']
     title_style.alignment = 1 # Center
     
-    elements.append(Paragraph(f"Purchase Register ({from_date.strftime('%d-%m-%Y')} to {to_date.strftime('%d-%m-%Y')})", title_style))
+    elements.append(Paragraph(f"Purchase Register ({date_label})", title_style))
     elements.append(Spacer(1, 10))
     
     # Table Header based on Purchase.html
@@ -111,10 +354,11 @@ async def generate_purchase_report(
         # Calculate Total Paid dynamically
         total_paid_val = (p.cash_payment or 0) + (p.upi_payment or 0)
         total_paid = f"{total_paid_val:,.2f}"
+        party_name = _party_display_name(p.party, lang)
         
         row = [
             p.date.strftime('%d-%m-%Y') if p.date else "-",
-            p.party.name if p.party else "Unknown",
+            _party_name_cell(party_name, lang),
             p.vehicle_number or "-",
             p.bill_number or "-",
             p.driver_name or "-",
@@ -156,7 +400,8 @@ async def generate_purchase_report(
         usable_width * 0.08  # Balance
     ]
     
-    style = TableStyle([
+    body_font = _table_body_font(lang)
+    style_cmds = [
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#d9d9d9')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
@@ -171,19 +416,20 @@ async def generate_purchase_report(
         ('RIGHTPADDING', (0, 0), (-1, -1), 2),
         ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cfcfcf')),
         ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cfcfcf')),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTNAME', (0, 1), (-1, -1), body_font),
         ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ('ALIGN', (0, 1), (0, -1), 'CENTER'), # Date
-        ('ALIGN', (1, 1), (1, -1), 'LEFT'),   # Party Name
-        ('FONTNAME', (1, 1), (1, -1), 'Helvetica-Bold'), # Party Name Bold
-        ('ALIGN', (2, 1), (3, -1), 'CENTER'), # Vehicle, Bill
-        ('ALIGN', (4, 1), (4, -1), 'LEFT'),   # Driver Name
-        ('ALIGN', (5, 1), (9, -1), 'CENTER'), # Boxes to Avg Wt
-        ('ALIGN', (10, 1), (-1, -1), 'RIGHT'), # Rate to Balance
-        ('FONTNAME', (11, 1), (-1, -1), 'Helvetica-Bold'), # Amounts Bold
-    ])
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Date
+        ('ALIGN', (1, 1), (1, -1), 'LEFT'),  # Party Name (Paragraph keeps its own font)
+        ('ALIGN', (2, 1), (3, -1), 'CENTER'),  # Vehicle, Bill
+        ('ALIGN', (4, 1), (4, -1), 'LEFT'),  # Driver Name
+        ('ALIGN', (5, 1), (9, -1), 'CENTER'),  # Boxes to Avg Wt
+        ('ALIGN', (10, 1), (-1, -1), 'RIGHT'),  # Rate to Balance
+    ]
+    if lang != "ta":
+        style_cmds.append(('FONTNAME', (1, 1), (1, -1), 'Helvetica-Bold'))
+        style_cmds.append(('FONTNAME', (11, 1), (-1, -1), 'Helvetica-Bold'))
     
-    t.setStyle(style)
+    t.setStyle(TableStyle(style_cmds))
     elements.append(t)
     
     doc.build(elements)
@@ -192,7 +438,7 @@ async def generate_purchase_report(
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=purchase_report_{from_date.strftime('%Y%m%d')}_{to_date.strftime('%Y%m%d')}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename={file_stem}.pdf"}
     )
 
 @router.get("/sales")
@@ -200,8 +446,12 @@ async def generate_sale_report(
     from_date: date,
     to_date: date,
     party_id: Optional[UUID] = None,
+    language: Optional[str] = Query("en", description="Party name language: en or ta"),
+    format: Optional[str] = Query("pdf", description="Export format: pdf or xlsx"),
     db: AsyncSession = Depends(get_db)
 ):
+    lang = _normalize_lang(language)
+    export_fmt = _normalize_export_format(format)
     query = select(Sale).options(selectinload(Sale.party)).where(
         and_(Sale.date >= from_date, Sale.date <= to_date)
     ).order_by(Sale.date)
@@ -211,6 +461,54 @@ async def generate_sale_report(
         
     result = await db.execute(query)
     sales = result.scalars().all()
+
+    date_label = f"{from_date.strftime('%d-%m-%Y')} to {to_date.strftime('%d-%m-%Y')}"
+    file_stem = f"sale_report_{from_date.strftime('%Y%m%d')}_{to_date.strftime('%Y%m%d')}"
+
+    if export_fmt == "xlsx":
+        headers = [
+            "Date", "Party Name", "Vehicle No", "Bill No", "Driver Name",
+            "Weighbridge Weight(Kg)", "Net Weight(Kg)", "Weight Rate (Rs.)", "Net Wt Amount (Rs.)",
+            "Box", "Box Rate (Rs.)", "Box Amount (Rs.)",
+            "Total Amount (Rs.)", "Paid Cash (Rs.)", "Paid UPI (Rs.)", "Total Paid Amount (Rs.)", "Balance (Rs.)",
+        ]
+        excel_rows = []
+        for s in sales:
+            net_wt = float(s.weight or 0)
+            wt_rate_val = float(s.weight_rate or 0)
+            boxes = int(s.boxes or 0)
+            box_rate_val = float(s.box_rate or 0)
+            weight_amount = float(s.weight_amount or 0) or round(net_wt * wt_rate_val, 2)
+            box_amount = float(s.box_amount or 0) or round(boxes * box_rate_val, 2)
+            total_amount = float(s.total_invoice_amount or 0) or round(weight_amount + box_amount, 2)
+            cash = float(s.cash_payment or 0)
+            upi = float(s.upi_payment or 0)
+            excel_rows.append([
+                s.date.strftime("%d-%m-%Y") if s.date else "-",
+                _party_display_name(s.party, lang),
+                s.vehicle_number or "-",
+                s.bill_number or "-",
+                s.driver_name or "-",
+                float(s.weighbridge_weight or 0),
+                net_wt,
+                wt_rate_val,
+                weight_amount,
+                boxes,
+                box_rate_val,
+                box_amount,
+                total_amount,
+                cash,
+                upi,
+                round(cash + upi, 2),
+                float(s.balance_amount or 0),
+            ])
+        return _excel_response(
+            title=f"Sales Register ({date_label})",
+            headers=headers,
+            rows=excel_rows,
+            filename=f"{file_stem}.xlsx",
+            sheet_name="Sales",
+        )
     
     # Generate PDF in memory
     buffer = io.BytesIO()
@@ -229,99 +527,110 @@ async def generate_sale_report(
     title_style = styles['Heading1']
     title_style.alignment = 1 # Center
     
-    elements.append(Paragraph(f"Sales Register ({from_date.strftime('%d-%m-%Y')} to {to_date.strftime('%d-%m-%Y')})", title_style))
+    elements.append(Paragraph(f"Sales Register ({date_label})", title_style))
     elements.append(Spacer(1, 10))
     
-    # Table Header based on sale.html
+    # Net kg × rate and Boxes × box rate as separate amount columns; total = sum
     data = [
         [
             "Date", "Party\nName", "Vehicle\nNo", "Bill\nNo", "Driver\nName",
-            "Weight\n(Kg)", "Weight\nRate (Rs.)", "Box", "Box\nRate (Rs.)",
+            "Weighbridge\nWeight(Kg)", "Net\nWeight(Kg)", "Weight\nRate (Rs.)", "Net Wt\nAmount (Rs.)",
+            "Box", "Box\nRate (Rs.)", "Box\nAmount (Rs.)",
             "Total\nAmount (Rs.)", "Paid Cash\n(Rs.)", "Paid UPI\n(Rs.)", "Total Paid\nAmount (Rs.)", "Balance\n(Rs.)"
         ]
     ]
     
     for s in sales:
-        # Format amounts
-        amount = f"{s.total_invoice_amount:,.2f}" if s.total_invoice_amount else "0.00"
-        cash = f"{s.cash_payment:,.2f}" if s.cash_payment else "0.00"
-        upi = f"{s.upi_payment:,.2f}" if s.upi_payment else "0.00"
-        balance = f"{s.balance_amount:,.2f}" if s.balance_amount else "0.00"
-        wt_rate = f"{s.weight_rate:,.2f}" if s.weight_rate else "0.00"
-        box_rate = f"{s.box_rate:,.2f}" if s.box_rate else "0.00"
-        
-        # Calculate Total Paid dynamically
-        total_paid_val = (s.cash_payment or 0) + (s.upi_payment or 0)
+        net_wt = float(s.weight or 0)
+        wt_rate_val = float(s.weight_rate or 0)
+        boxes = int(s.boxes or 0)
+        box_rate_val = float(s.box_rate or 0)
+        weight_amount = float(s.weight_amount or 0) or round(net_wt * wt_rate_val, 2)
+        box_amount = float(s.box_amount or 0) or round(boxes * box_rate_val, 2)
+        total_amount = float(s.total_invoice_amount or 0) or round(weight_amount + box_amount, 2)
+
+        cash = f"{float(s.cash_payment or 0):,.2f}"
+        upi = f"{float(s.upi_payment or 0):,.2f}"
+        balance = f"{float(s.balance_amount or 0):,.2f}"
+        total_paid_val = float(s.cash_payment or 0) + float(s.upi_payment or 0)
         total_paid = f"{total_paid_val:,.2f}"
+        party_name = _party_display_name(s.party, lang)
         
         row = [
             s.date.strftime('%d-%m-%Y') if s.date else "-",
-            s.party.name if s.party else "Unknown",
+            _party_name_cell(party_name, lang, font_size=7),
             s.vehicle_number or "-",
             s.bill_number or "-",
             s.driver_name or "-",
-            f"{s.weight:.2f}" if s.weight else "0.00",
-            wt_rate,
-            str(s.boxes) if s.boxes else "0",
-            box_rate,
-            amount,
+            f"{float(s.weighbridge_weight or 0):.2f}",
+            f"{net_wt:.2f}",
+            f"{wt_rate_val:,.2f}",
+            f"{weight_amount:,.2f}",
+            str(boxes),
+            f"{box_rate_val:,.2f}",
+            f"{box_amount:,.2f}",
+            f"{total_amount:,.2f}",
             cash,
             upi,
             total_paid,
-            balance
+            balance,
         ]
         data.append(row)
         
     # Table Style
     t = Table(data, repeatRows=1)
     
-    # Column widths based on A4 Landscape (842pts) minus 30pts margins = 812pts usable
-    # We have 14 columns total
+    # A4 Landscape usable ~812pts; 17 columns
     usable_width = 812
     t._argW = [
-        usable_width * 0.07, # Date
-        usable_width * 0.10, # Party Name
-        usable_width * 0.08, # Vehicle No
-        usable_width * 0.08, # Bill No
-        usable_width * 0.08, # Driver Name
-        usable_width * 0.07, # Weight
-        usable_width * 0.07, # Wt Rate
-        usable_width * 0.04, # Box
-        usable_width * 0.07, # Box Rate
-        usable_width * 0.08, # Total Amt
-        usable_width * 0.06, # Paid Cash
-        usable_width * 0.05, # Paid UPI
-        usable_width * 0.07, # Total Paid Amount
-        usable_width * 0.08  # Balance
+        usable_width * 0.055,  # Date
+        usable_width * 0.09,   # Party Name
+        usable_width * 0.055,  # Vehicle No
+        usable_width * 0.055,  # Bill No
+        usable_width * 0.06,   # Driver Name
+        usable_width * 0.055,  # Weighbridge
+        usable_width * 0.05,   # Net Weight
+        usable_width * 0.05,   # Wt Rate
+        usable_width * 0.06,   # Net Wt Amount
+        usable_width * 0.035,  # Box
+        usable_width * 0.05,   # Box Rate
+        usable_width * 0.055,  # Box Amount
+        usable_width * 0.06,   # Total Amt
+        usable_width * 0.05,   # Paid Cash
+        usable_width * 0.045,  # Paid UPI
+        usable_width * 0.055,  # Total Paid
+        usable_width * 0.055,  # Balance
     ]
     
-    style = TableStyle([
+    body_font = _table_body_font(lang)
+    style_cmds = [
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#d9d9d9')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('TOPPADDING', (0, 0), (-1, 0), 8),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
-        ('TOPPADDING', (0, 1), (-1, -1), 4),
-        ('LEFTPADDING', (0, 0), (-1, -1), 2),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+        ('FONTSIZE', (0, 0), (-1, 0), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('TOPPADDING', (0, 0), (-1, 0), 6),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+        ('TOPPADDING', (0, 1), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 1),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 1),
         ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cfcfcf')),
         ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cfcfcf')),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ('ALIGN', (0, 1), (0, -1), 'CENTER'), # Date
-        ('ALIGN', (1, 1), (1, -1), 'LEFT'),   # Party Name
-        ('FONTNAME', (1, 1), (1, -1), 'Helvetica-Bold'), # Party Name Bold
-        ('ALIGN', (2, 1), (3, -1), 'CENTER'), # Vehicle, Bill
-        ('ALIGN', (4, 1), (4, -1), 'LEFT'),   # Driver Name
-        ('ALIGN', (5, 1), (8, -1), 'CENTER'), # Wt to Box Rate
-        ('ALIGN', (9, 1), (-1, -1), 'RIGHT'), # Amt to Balance
-    ])
+        ('FONTNAME', (0, 1), (-1, -1), body_font),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+        ('ALIGN', (1, 1), (1, -1), 'LEFT'),
+        ('ALIGN', (2, 1), (3, -1), 'CENTER'),
+        ('ALIGN', (4, 1), (4, -1), 'LEFT'),
+        ('ALIGN', (5, 1), (11, -1), 'CENTER'),
+        ('ALIGN', (12, 1), (-1, -1), 'RIGHT'),
+    ]
+    if lang != "ta":
+        style_cmds.append(('FONTNAME', (1, 1), (1, -1), 'Helvetica-Bold'))
     
-    t.setStyle(style)
+    t.setStyle(TableStyle(style_cmds))
     elements.append(t)
     
     doc.build(elements)
@@ -330,7 +639,7 @@ async def generate_sale_report(
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=sale_report_{from_date.strftime('%Y%m%d')}_{to_date.strftime('%Y%m%d')}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename={file_stem}.pdf"}
     )
 
 
@@ -339,9 +648,13 @@ async def generate_party_ledger_report(
     party_id: UUID,
     from_date: date,
     to_date: date,
+    language: Optional[str] = Query("en", description="Party name language: en or ta"),
+    format: Optional[str] = Query("pdf", description="Export format: pdf or xlsx"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Party Ledger PDF matching Partystatement.html layout."""
+    """Party Ledger PDF/Excel matching Partystatement.html layout."""
+    lang = _normalize_lang(language)
+    export_fmt = _normalize_export_format(format)
     party_result = await db.execute(select(Party).where(Party.id == party_id))
     party = party_result.scalar_one_or_none()
     if not party:
@@ -405,6 +718,39 @@ async def generate_party_ledger_report(
     difference = total_credit - total_debit
     closing_suffix = "Cr" if difference >= 0 else "Dr"
 
+    display_name = _party_display_name(party, lang)
+    date_label = f"{from_date.strftime('%d-%m-%Y')} to {to_date.strftime('%d-%m-%Y')}"
+    safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in (party.name or "party"))[:40]
+    file_stem = f"party_ledger_{safe_name}_{from_date.strftime('%Y%m%d')}_{to_date.strftime('%Y%m%d')}"
+
+    if export_fmt == "xlsx":
+        headers = ["Date", "Type", "Net Weight (Kg)", "Rate (Rs.)", "Credit (Rs.)", "Debit (Rs.)"]
+        excel_rows = []
+        for r in rows:
+            is_purchase = r["kind"] == "Purchase"
+            excel_rows.append([
+                r["date"].strftime("%d-%m-%Y") if r["date"] else "-",
+                r["kind"],
+                round(float(r["net_weight"]), 2),
+                round(float(r["rate"]), 2),
+                round(float(r["credit"]), 2) if is_purchase else 0,
+                round(float(r["debit"]), 2) if not is_purchase else 0,
+            ])
+        summary = [
+            ["", "", "", "Total Credit", round(total_credit, 2), ""],
+            ["", "", "", "Total Debit", "", round(total_debit, 2)],
+            ["", "", "", "Difference", round(difference, 2), ""],
+            ["", "", "", "Closing Balance", f"{_fmt_inr(abs(difference))} {closing_suffix}", ""],
+        ]
+        return _excel_response(
+            title=f"{display_name} — Party Ledger ({date_label})",
+            headers=headers,
+            rows=excel_rows,
+            filename=f"{file_stem}.xlsx",
+            sheet_name="Party Ledger",
+            summary_rows=summary,
+        )
+
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -441,11 +787,11 @@ async def generate_party_ledger_report(
     )
 
     elements = []
-    elements.append(Paragraph(party.name.upper(), title_style))
+    elements.append(_party_title_paragraph(display_name, lang, title_style))
     elements.append(Paragraph("Party Ledger Statement", subtitle_style))
     elements.append(
         Paragraph(
-            f"{from_date.strftime('%d-%m-%Y')} to {to_date.strftime('%d-%m-%Y')}",
+            date_label,
             range_style,
         )
     )
@@ -547,7 +893,7 @@ async def generate_party_ledger_report(
     doc.build(elements)
     buffer.seek(0)
 
-    safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in party.name)[:40]
+    safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in (party.name or "party"))[:40]
     filename = f"party_ledger_{safe_name}_{from_date.strftime('%Y%m%d')}_{to_date.strftime('%Y%m%d')}.pdf"
     return StreamingResponse(
         buffer,
@@ -558,11 +904,13 @@ async def generate_party_ledger_report(
 
 @router.get("/parties-balance-sheet")
 async def generate_parties_balance_sheet(
+    language: Optional[str] = Query("en", description="Party name language: en or ta"),
     db: AsyncSession = Depends(get_db),
 ):
     """All-parties Balance Sheet PDF: Party Name | Credit (To Pay) | Debit (To Receive)."""
     from datetime import datetime as dt
 
+    lang = _normalize_lang(language)
     result = await db.execute(
         select(Party).where(Party.is_active == True).order_by(Party.name.asc())  # noqa: E712
     )
@@ -625,7 +973,7 @@ async def generate_parties_balance_sheet(
 
         total_credit += credit
         total_debit += debit
-        table_data.append([party.name, credit_cell, debit_cell])
+        table_data.append([_party_name_cell(_party_display_name(party, lang), lang, 10), credit_cell, debit_cell])
 
     table_data.append(
         [

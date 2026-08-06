@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Plus, RefreshCcw, Download } from 'lucide-react-native';
+import { Search, Plus, RefreshCcw, Download, ArrowLeft } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as IntentLauncher from 'expo-intent-launcher';
 import client from '../api/client';
+import PartyFormModal from '../components/PartyFormModal';
 
 export default function PartiesScreen({ navigation, route }: any) {
-  const [filter, setFilter] = useState<'ALL' | 'SUPPLIER' | 'PURCHASER'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'SALE' | 'PURCHASER'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   React.useEffect(() => {
     if (route.params?.successMessage) {
@@ -97,7 +99,15 @@ export default function PartiesScreen({ navigation, route }: any) {
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
       <View className="px-4 py-3 bg-white border-b border-gray-200 flex-row items-center justify-between">
-        <Text className="text-lg font-bold text-gray-900">Parties</Text>
+        <View className="flex-row items-center flex-1 mr-2">
+          <TouchableOpacity
+            onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Dashboard'))}
+            className="mr-3"
+          >
+            <ArrowLeft color="#111827" size={24} />
+          </TouchableOpacity>
+          <Text className="text-lg font-bold text-gray-900">Parties</Text>
+        </View>
         <View className="flex-row items-center">
           <TouchableOpacity
             onPress={handleDownloadBalanceSheet}
@@ -120,11 +130,11 @@ export default function PartiesScreen({ navigation, route }: any) {
             <RefreshCcw color="#374151" size={16} />
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => navigation.navigate('NewParty')}
+            onPress={() => setAddOpen(true)}
             className="bg-[#006948] flex-row items-center px-3 py-1.5 rounded-full"
           >
             <Plus color="white" size={14} />
-            <Text className="text-white text-xs font-semibold ml-1">Add</Text>
+            <Text className="text-white text-xs font-semibold ml-1">Add Party</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -135,50 +145,53 @@ export default function PartiesScreen({ navigation, route }: any) {
         </View>
       ) : null}
 
-      {/* Compact Search Bar */}
-      <View className="px-4 py-2 bg-white border-b border-gray-200">
-        <View className="relative justify-center">
-          <View className="absolute left-2.5 z-10">
-            <Search color="#9ca3af" size={14} />
-          </View>
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search parties..."
-            placeholderTextColor="#9ca3af"
-            className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-xs text-gray-900"
-          />
-        </View>
-      </View>
-
-      {/* Filters */}
-      <View className="flex-row px-4 py-2.5 bg-white border-b border-gray-200 space-x-2">
-        <TouchableOpacity
-          className={`px-3 py-1 rounded-full border ${filter === 'ALL' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
-          onPress={() => setFilter('ALL')}
-        >
-          <Text className={`text-xs font-semibold ${filter === 'ALL' ? 'text-white' : 'text-gray-600'}`}>All</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          className={`px-3 py-1 rounded-full border ${filter === 'SUPPLIER' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
-          onPress={() => setFilter('SUPPLIER')}
-        >
-          <Text className={`text-xs font-semibold ${filter === 'SUPPLIER' ? 'text-white' : 'text-gray-600'}`}>Suppliers</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          className={`px-3 py-1 rounded-full border ${filter === 'PURCHASER' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
-          onPress={() => setFilter('PURCHASER')}
-        >
-          <Text className={`text-xs font-semibold ${filter === 'PURCHASER' ? 'text-white' : 'text-gray-600'}`}>Purchasers</Text>
-        </TouchableOpacity>
-      </View>
-
+      {/* Compact Search + Filters + List scroll together */}
       <ScrollView
-        className="flex-1 p-4"
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} colors={['#006948']} />
         }
       >
+        <View className="px-4 py-2 bg-white border-b border-gray-200">
+          <View className="relative justify-center">
+            <View className="absolute left-2.5 z-10">
+              <Search color="#9ca3af" size={14} />
+            </View>
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search parties..."
+              placeholderTextColor="#9ca3af"
+              className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-xs text-gray-900"
+              style={{ outline: 'none' } as any}
+            />
+          </View>
+        </View>
+
+        <View className="flex-row px-4 py-2.5 bg-white border-b border-gray-200 gap-2">
+          <TouchableOpacity
+            className={`px-3 py-1 rounded-full border ${filter === 'ALL' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
+            onPress={() => setFilter('ALL')}
+          >
+            <Text className={`text-xs font-semibold ${filter === 'ALL' ? 'text-white' : 'text-gray-600'}`}>All</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className={`px-3 py-1 rounded-full border ${filter === 'SALE' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
+            onPress={() => setFilter('SALE')}
+          >
+            <Text className={`text-xs font-semibold ${filter === 'SALE' ? 'text-white' : 'text-gray-600'}`}>Sale</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className={`px-3 py-1 rounded-full border ${filter === 'PURCHASER' ? 'bg-[#006948] border-[#006948]' : 'bg-white border-gray-300'}`}
+            onPress={() => setFilter('PURCHASER')}
+          >
+            <Text className={`text-xs font-semibold ${filter === 'PURCHASER' ? 'text-white' : 'text-gray-600'}`}>Purchasers</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View className="p-4">
         {isLoading ? (
           <ActivityIndicator size="large" color="#006948" className="mt-10" />
         ) : isError ? (
@@ -203,14 +216,14 @@ export default function PartiesScreen({ navigation, route }: any) {
                 </View>
                 <View className="flex-1">
                   <View className="flex-row items-center space-x-2">
-                    <Text className={`font-medium text-base ${party.is_active ? 'text-gray-900' : 'text-gray-600 line-through'}`}>{party.name}</Text>
+                    <Text className={`font-bold text-base ${party.is_active ? 'text-gray-900' : 'text-gray-600 line-through'}`}>{party.name}</Text>
                     {!party.is_active && (
                       <View className="bg-gray-300 px-2 py-0.5 rounded-full">
                         <Text className="text-[10px] font-bold text-gray-700">Disabled</Text>
                       </View>
                     )}
                   </View>
-                  {party.nickname ? <Text className="text-xs text-gray-500 italic mt-0.5">{party.nickname}</Text> : null}
+                  {party.nickname ? <Text className="text-sm text-gray-500 mt-0.5">{party.nickname}</Text> : null}
                   <Text className="text-xs text-gray-500 mt-1">{party.mobile || 'No phone'}</Text>
                   {party.address ? <Text className="text-xs text-gray-500 mt-0.5">{party.address}</Text> : null}
                 </View>
@@ -233,7 +246,15 @@ export default function PartiesScreen({ navigation, route }: any) {
             </TouchableOpacity>
           ))
         )}
+        </View>
       </ScrollView>
+
+      <PartyFormModal
+        visible={addOpen}
+        mode="create"
+        onClose={() => setAddOpen(false)}
+        onSuccess={(msg) => setSuccessMsg(msg)}
+      />
     </SafeAreaView>
   );
 }

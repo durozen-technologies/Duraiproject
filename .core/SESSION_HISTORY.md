@@ -880,3 +880,54 @@ px tsc --noEmit and found compilation errors. Removed invalid onClick properties
 - [2026-08-06 15:15:00] Fixed date picker in ReportsScreen for web by using native HTML input elements.
 
 - [2026-08-06 16:15:00] Fixed OverrideableField logic in BillEntryScreen.tsx to respect preview mode. Replaced hardcoded isEditing={true} with isEditing={isEditing} so that net kg, birds, and amount are read-only when viewing a saved bill.
+
+- [2026-08-06 16:50:00] Removed Purchases and Sales screens from the bottom tab menu (RootNavigator.tsx) since they were replaced by the unified Bill screen.
+
+- [2026-08-06 16:51:00] Added the Collection page to the bottom tab menu, positioned to the right of the Bill page in RootNavigator.tsx.
+
+- [2026-08-06 16:53:00] Fixed date pickers in CollectionPaymentScreen for web view (History tab filters and the Record Payment modal).
+
+### [2026-08-06 19:42:00] Fixed Bill Entry Expense Total Alignment
+- Request: in that bill entry expense total are not aligned proper on line , fix it.
+- Action: Edited BillEntryScreen.tsx to wrap the 'Total' text inside expenses rendering with <View className="h-10 justify-center"> so it aligns vertically with the input fields in the same row.
+
+### [2026-08-06 19:48:00] Added This Week and This Month filters to Dashboard
+- Request: in the dashboard, make see the Today, This week, This Month, Custom
+- Action: Edited DashboardScreen.tsx to include new filter buttons for 'This Week' and 'This Month' and added logic in getDateRange to compute their date boundaries.
+
+### [2026-08-06 19:51:00] Removed Stock Movement Section from Dashboard
+- Request: Stock Purchase Bird Count 28326 Net Weight 19,080.22 kg Sale Bird Count 2000 Net Weight 2,534.03 kg remove the stock movement on it.
+- Action: Removed the Stock section (showing birds purchased and sold) from DashboardScreen.tsx.
+
+### [2026-08-06 19:55:00] Updated Outstanding Balances UI in Dashboard
+- Request: Current Purchaser Dues... in that not show like button concept, in that Purchase make to pay amount, Sale To receive amount...
+- Action: Edited DashboardScreen.tsx to remove chevron icons and rename 'Current Purchaser Dues' to 'Sale To Receive' and 'Current Supplier Payables' to 'Purchase To Pay'.
+
+### [2026-08-06 20:00:00] Redesigned Outstanding Section UI
+- Request: in the dashboard of Outstanding ,make the upload UI concept change it out.
+- Action: Redesigned the Outstanding section in DashboardScreen.tsx to match the requested design, using light colored dots, title/subtitle, pill badges for Incoming/Outgoing, and aligning the amount and label to the right.
+
+### [2026-08-06 20:07:00] Restored Outstanding Heading
+- Request: in the dashboard, the Outstanding heading is missing
+- Action: Fixed a regression from the previous UI update by restoring the 'Outstanding' text heading above the balances card and properly closing the wrapper View.
+
+### [2026-08-06 20:29:00] Fixed Collection Payment Modal Layout
+- Request: in the collection not proper alignment and interface action, in the party itself not clearly visible.
+- Action: Added max height and a ScrollView to the Collection Payment Modal to ensure the header (party name) doesn't get pushed off-screen on smaller screens or web views.
+
+### [2026-08-06 20:50:00] Enhanced Collection UI Layout and Formatting
+- Request: Center popup, show bold nickname, remove address, keep mobile, search by nickname.
+- Action: Used multi_replace_file_content to center the Collection modal with a max width and fully rounded corners, enhanced the header to display the party's nickname prominently, and stripped the address from the main party list while maintaining mobile and nickname details.
+
+### [2026-08-06 20:55:00] Adjusted Typography in Collection Modal
+- Request: in the Party name keep it as Bold, nickname as normal in record payment page.
+- Action: Swapped font weights in the CollectionPaymentScreen modal header so the main Party Name is bold, and the Nickname underneath it is normal weight.
+
+### [2026-08-06 21:03:00] Added Search and Metadata to Collection History
+- Request: in the History to search party name or nickname, to see the history payment with date.
+- Action: Updated the backend payment history API to return party_nickname, and implemented filtering on the frontend Collection History tab to search by party name or nickname. Also added the nickname and formatted transaction date to the history cards.
+
+### [2026-08-07 00:08:00] Created and Executed Backend Integration Tests
+- Request: make the test file all the data are store and accessing proper, make do it
+- Action: Wrote 	est_driver.py in the backend directory to test the POST and GET /api/drivers/ endpoints. Verified that the Driver data (specifically after removing the 
+ickname field in the frontend form) is being properly saved and returned by the server. The script executed successfully.

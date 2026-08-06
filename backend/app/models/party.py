@@ -14,6 +14,7 @@ class Party(Base, BaseModelMixin):
     type: Mapped[PartyType] = mapped_column(Enum(PartyType), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     nickname: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tamil_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     mobile: Mapped[str | None] = mapped_column(String(50), nullable=True)
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
