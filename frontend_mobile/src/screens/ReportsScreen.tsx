@@ -254,11 +254,19 @@ export default function ReportsScreen({ navigation }: any) {
 
         <View
           className="flex-row mb-4"
-          style={{ gap: 12, zIndex: openDropdown === 'purchase' || openDropdown === 'sale' ? 50 : 1 }}
+          style={{
+            gap: 12,
+            zIndex: openDropdown === 'purchase' || openDropdown === 'sale' ? 50 : 1,
+            overflow: 'visible',
+          }}
         >
           <View
             className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 p-4"
-            style={{ zIndex: openDropdown === 'purchase' ? 40 : 1, elevation: openDropdown === 'purchase' ? 8 : 1 }}
+            style={{
+              zIndex: openDropdown === 'purchase' ? 40 : 1,
+              elevation: openDropdown === 'purchase' ? 8 : 1,
+              overflow: 'visible',
+            }}
           >
             <View className="flex-row items-center mb-3">
               <FileText color="#006948" size={20} />
@@ -266,15 +274,15 @@ export default function ReportsScreen({ navigation }: any) {
             </View>
 
             <Text className="text-sm font-medium text-gray-700 mb-1">Select Purchaser</Text>
-            <View className="mb-4" style={{ zIndex: 30 }}>
+            <View className="mb-4" style={{ zIndex: 30, overflow: 'visible', minHeight: openDropdown === 'purchase' ? 220 : undefined }}>
               {isLoading ? (
                 <ActivityIndicator className="p-3" color="#006948" />
               ) : (
                 <PartySearchDropdown
                   parties={activePurchasers}
                   value={selectedPartyId}
-                  onSelect={(id: string) => setSelectedPartyId(id || 'all')}
-                  placeholder="Search purchaser..."
+                  onSelect={(id: string) => setSelectedPartyId(id)}
+                  placeholder="Type to search purchaser..."
                   allOptionLabel="ALL Purchasers"
                   allOptionValue="all"
                   onDropdownOpen={(open: boolean) => setOpenDropdown(open ? 'purchase' : null)}
@@ -287,7 +295,11 @@ export default function ReportsScreen({ navigation }: any) {
 
           <View
             className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 p-4"
-            style={{ zIndex: openDropdown === 'sale' ? 40 : 1, elevation: openDropdown === 'sale' ? 8 : 1 }}
+            style={{
+              zIndex: openDropdown === 'sale' ? 40 : 1,
+              elevation: openDropdown === 'sale' ? 8 : 1,
+              overflow: 'visible',
+            }}
           >
             <View className="flex-row items-center mb-3">
               <FileText color="#006948" size={20} />
@@ -295,15 +307,15 @@ export default function ReportsScreen({ navigation }: any) {
             </View>
 
             <Text className="text-sm font-medium text-gray-700 mb-1">Select Sale Party</Text>
-            <View className="mb-4" style={{ zIndex: 30 }}>
+            <View className="mb-4" style={{ zIndex: 30, overflow: 'visible', minHeight: openDropdown === 'sale' ? 220 : undefined }}>
               {isLoading ? (
                 <ActivityIndicator className="p-3" color="#006948" />
               ) : (
                 <PartySearchDropdown
                   parties={activeSaleParties}
                   value={selectedSupplierId}
-                  onSelect={(id: string) => setSelectedSupplierId(id || 'all')}
-                  placeholder="Search sale party..."
+                  onSelect={(id: string) => setSelectedSupplierId(id)}
+                  placeholder="Type to search sale party..."
                   allOptionLabel="ALL Sale Parties"
                   allOptionValue="all"
                   onDropdownOpen={(open: boolean) => setOpenDropdown(open ? 'sale' : null)}
@@ -317,7 +329,11 @@ export default function ReportsScreen({ navigation }: any) {
 
         <View
           className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-20"
-          style={{ zIndex: openDropdown === 'ledger' ? 40 : 1, elevation: openDropdown === 'ledger' ? 8 : 1 }}
+          style={{
+            zIndex: openDropdown === 'ledger' ? 40 : 1,
+            elevation: openDropdown === 'ledger' ? 8 : 1,
+            overflow: 'visible',
+          }}
         >
           <View className="flex-row items-center mb-3">
             <FileText color="#006948" size={20} />
@@ -325,7 +341,7 @@ export default function ReportsScreen({ navigation }: any) {
           </View>
 
           <Text className="text-sm font-medium text-gray-700 mb-1">Select Party</Text>
-          <View className="mb-4" style={{ zIndex: 30 }}>
+          <View className="mb-4" style={{ zIndex: 30, overflow: 'visible', minHeight: openDropdown === 'ledger' ? 220 : undefined }}>
             {isLoading ? (
               <ActivityIndicator className="p-3" color="#006948" />
             ) : (
@@ -333,7 +349,7 @@ export default function ReportsScreen({ navigation }: any) {
                 parties={activeParties}
                 value={selectedLedgerPartyId}
                 onSelect={setSelectedLedgerPartyId}
-                placeholder="Search party (type 2+ letters)..."
+                placeholder="Type to search party..."
                 onDropdownOpen={(open: boolean) => setOpenDropdown(open ? 'ledger' : null)}
               />
             )}
