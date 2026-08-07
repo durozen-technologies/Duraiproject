@@ -19,9 +19,9 @@ class Party(Base, BaseModelMixin):
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     
-    opening_balance: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    unpaid_opening_balance: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    current_balance: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    opening_balance: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
+    unpaid_opening_balance: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
+    current_balance: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
     
     # Relationships
     purchases = relationship("Purchase", back_populates="party")

@@ -94,6 +94,8 @@ def _party_to_response(party: Party, settled_abs: float = 0.0, pending: float = 
 async def get_parties(party_type: Optional[str] = None, db: AsyncSession = Depends(deps.get_db)):
     from app.models.purchase import Purchase
     from app.models.sale import Sale
+    from app.api.routes.payments import repair_party_opening_settlement
+
     query = select(Party)
     if party_type:
         query = query.where(Party.type.in_([PartyType(party_type), PartyType.BOTH]))
@@ -106,21 +108,13 @@ async def get_parties(party_type: Optional[str] = None, db: AsyncSession = Depen
     pur_totals = {row[0]: float(row[1]) for row in (await db.execute(pur_query)).all()}
     sal_totals = {row[0]: float(row[1]) for row in (await db.execute(sal_query)).all()}
 
-    settled_rows = await db.execute(
-        select(
-            PaymentTransaction.party_id,
-            func.coalesce(func.sum(PaymentTransaction.opening_applied), 0),
-        ).group_by(PaymentTransaction.party_id)
-    )
-    settled_map = {row[0]: round(float(row[1] or 0), 2) for row in settled_rows.all()}
-
     changed = False
     responses = []
     for party in parties:
-        pending = pur_totals.get(party.id, 0.0) + sal_totals.get(party.id, 0.0)
-        settled = settled_map.get(party.id, 0.0)
-        if _sync_unpaid_opening(party, settled):
+        if await repair_party_opening_settlement(db, party):
             changed = True
+        pending = pur_totals.get(party.id, 0.0) + sal_totals.get(party.id, 0.0)
+        settled = round(abs(float(party.opening_balance or 0) - float(party.unpaid_opening_balance or 0)), 2)
         responses.append(_party_to_response(party, settled_abs=settled, pending=pending))
     if changed:
         await db.commit()
@@ -129,14 +123,16 @@ async def get_parties(party_type: Optional[str] = None, db: AsyncSession = Depen
 
 @router.get("/{party_id}", response_model=PartyResponse)
 async def get_party(party_id: UUID4, db: AsyncSession = Depends(deps.get_db)):
+    from app.api.routes.payments import repair_party_opening_settlement
+
     result = await db.execute(select(Party).where(Party.id == party_id))
     db_party = result.scalar_one_or_none()
     if not db_party:
         raise HTTPException(status_code=404, detail="Party not found")
-    settled = await _opening_settled_abs(db, party_id)
-    if _sync_unpaid_opening(db_party, settled):
+    if await repair_party_opening_settlement(db, db_party):
         await db.commit()
         await db.refresh(db_party)
+    settled = await _opening_settled_abs(db, party_id)
     return _party_to_response(db_party, settled_abs=settled, pending=0.0)
 
 from app.models.purchase import Purchase
@@ -162,14 +158,8 @@ async def get_party_pending_bills(party_id: UUID4, db: AsyncSession = Depends(de
         raise HTTPException(status_code=404, detail="Party not found")
         
     pending = []
-    
-    if float(party.unpaid_opening_balance) != 0:
-        pending.append(PendingBill(
-            total_amount=abs(float(party.opening_balance)),
-            balance_amount=abs(float(party.unpaid_opening_balance)),
-            is_opening_balance=True
-        ))
-        
+
+    # Bills first, then opening — matches collection application order
     purchase_result = await db.execute(
         select(Purchase).where(Purchase.party_id == party_id, Purchase.balance_amount > 0).order_by(Purchase.date.asc())
     )
@@ -201,6 +191,13 @@ async def get_party_pending_bills(party_id: UUID4, db: AsyncSession = Depends(de
             net_weight=float(s.weight),
             is_opening_balance=False
         ))
+
+    if float(party.unpaid_opening_balance) != 0:
+        pending.append(PendingBill(
+            total_amount=abs(float(party.opening_balance)),
+            balance_amount=abs(float(party.unpaid_opening_balance)),
+            is_opening_balance=True
+        ))
         
     return pending
 
@@ -225,11 +222,16 @@ async def create_party(party: PartyCreate, db: AsyncSession = Depends(deps.get_d
 
 @router.put("/{party_id}", response_model=PartyResponse)
 async def update_party(party_id: UUID4, party_update: PartyUpdate, db: AsyncSession = Depends(deps.get_db)):
+    from app.api.routes.payments import repair_party_opening_settlement
+
     result = await db.execute(select(Party).where(Party.id == party_id))
     db_party = result.scalar_one_or_none()
     
     if not db_party:
         raise HTTPException(status_code=404, detail="Party not found")
+
+    # Rebuild bills-first opening settlement before validating the paid floor
+    await repair_party_opening_settlement(db, db_party)
         
     update_data = party_update.model_dump(exclude_unset=True)
     

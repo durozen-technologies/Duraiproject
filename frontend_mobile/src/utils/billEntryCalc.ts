@@ -17,15 +17,15 @@ export function parseIntSafe(v: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function totalBirds(boxes: string | number, birdsPerBox: string | number): number {
+export function totalBirds(boxes: string | number | null | undefined, birdsPerBox: string | number | null | undefined): number {
   return parseIntSafe(boxes) * parseIntSafe(birdsPerBox);
 }
 
 /** Net Kg = Weighbridge − (Total Birds × empty_bird_g / 1000). Editable override when netManual. */
 export function calcNetKg(
-  weighbridge: string | number,
+  weighbridge: string | number | null | undefined,
   birds: number,
-  emptyBirdG: string | number,
+  emptyBirdG: string | number | null | undefined,
   netOverride: string | number | null | undefined,
   netManual: boolean
 ): number {
@@ -40,11 +40,11 @@ export function avgWeight(netKg: number, birds: number): number {
   return birds > 0 ? netKg / birds : 0;
 }
 
-export function purchaseAmount(netKg: number, rate: string | number): number {
+export function purchaseAmount(netKg: number, rate: string | number | null | undefined): number {
   return round2(netKg * parseNum(rate));
 }
 
-export function purchasePaid(cash: string | number, upi: string | number, bank: string | number): number {
+export function purchasePaid(cash: string | number | null | undefined, upi: string | number | null | undefined, bank: string | number | null | undefined): number {
   return round2(parseNum(cash) + parseNum(upi) + parseNum(bank));
 }
 
@@ -54,14 +54,14 @@ export function purchaseBalance(amount: number, paid: number): number {
 
 export function saleInvoice(
   netKg: number,
-  rate: string | number,
-  boxes: string | number,
-  boxRate: string | number
+  rate: string | number | null | undefined,
+  boxes: string | number | null | undefined,
+  boxRate: string | number | null | undefined
 ): number {
   return round2(netKg * parseNum(rate) + parseIntSafe(boxes) * parseNum(boxRate));
 }
 
-export function saleReceived(cash: string | number, upi: string | number, bank: string | number): number {
+export function saleReceived(cash: string | number | null | undefined, upi: string | number | null | undefined, bank: string | number | null | undefined): number {
   return round2(parseNum(cash) + parseNum(upi) + parseNum(bank));
 }
 
@@ -69,7 +69,7 @@ export function saleBalance(invoice: number, received: number): number {
   return round2(invoice - received);
 }
 
-export function expenseTotal(cash: string | number, upi: string | number): number {
+export function expenseTotal(cash: string | number | null | undefined, upi: string | number | null | undefined): number {
   return round2(parseNum(cash) + parseNum(upi));
 }
 
@@ -111,7 +111,7 @@ export interface ExpenseRowLike {
   upi_amount: string | number;
 }
 
-export function derivePurchase(row: PurchaseRowLike, emptyBirdG: string | number) {
+export function derivePurchase(row: PurchaseRowLike, emptyBirdG: string | number | null | undefined) {
   let birds = totalBirds(row.boxes, row.birds_per_box);
   if (row.birds_manual && row.birds_override !== undefined) {
     birds = Math.max(0, parseIntSafe(row.birds_override));
@@ -132,7 +132,7 @@ export function derivePurchase(row: PurchaseRowLike, emptyBirdG: string | number
   };
 }
 
-export function deriveSale(row: SaleRowLike, emptyBirdG: string | number) {
+export function deriveSale(row: SaleRowLike, emptyBirdG: string | number | null | undefined) {
   let birds = totalBirds(row.boxes, row.birds_per_box);
   if (row.birds_manual && row.birds_override !== undefined) {
     birds = Math.max(0, parseIntSafe(row.birds_override));
@@ -175,7 +175,7 @@ export function inferPurchaseOverrides(
     purchase_rate?: number | null;
     purchase_amount?: number | null;
   },
-  emptyBirdG: string | number
+  emptyBirdG: string | number | null | undefined
 ) {
   const boxes = parseIntSafe(p.total_boxes);
   const bpb = parseIntSafe(p.birds_per_box);
@@ -218,7 +218,7 @@ export function inferSaleOverrides(
     box_rate?: number | null;
     total_invoice_amount?: number | null;
   },
-  emptyBirdG: string | number
+  emptyBirdG: string | number | null | undefined
 ) {
   const boxes = parseIntSafe(s.boxes);
   const bpb = parseIntSafe(s.birds_per_box);
@@ -250,7 +250,7 @@ export function summarizeBillEntry(
   purchases: PurchaseRowLike[],
   sales: SaleRowLike[],
   expenses: ExpenseRowLike[],
-  emptyBirdG: string | number
+  emptyBirdG: string | number | null | undefined
 ) {
   let purchaseAmountSum = 0;
   let purchaseNetSum = 0;

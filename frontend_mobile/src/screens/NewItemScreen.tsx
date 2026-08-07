@@ -31,9 +31,15 @@ export default function NewItemScreen({ navigation, route }: any) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] });
-      navigation.navigate('Items', { 
-        successMessage: `Item ${isEditing ? 'updated' : 'created'} successfully` 
-      });
+      const successMessage = `Item ${isEditing ? 'updated' : 'created'} successfully`;
+      // RN 7: navigate() pushes a new Items screen; popTo returns to the existing one
+      if (typeof navigation.popTo === 'function') {
+        navigation.popTo('Items', { successMessage });
+      } else if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.replace('Items', { successMessage });
+      }
     },
     onError: (error: any) => {
       setErrorMsg(error.response?.data?.detail || "An error occurred");

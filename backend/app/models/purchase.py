@@ -25,17 +25,17 @@ class Purchase(Base, BaseModelMixin):
     birds_per_box: Mapped[int] = mapped_column(Integer, default=0)
     actual_birds: Mapped[int] = mapped_column(Integer, default=0)
     
-    weighbridge_weight: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0)
-    net_weight: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0)
-    average_weight: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0)
+    weighbridge_weight: Mapped[float] = mapped_column(Numeric(14, 2), default=0.0)
+    net_weight: Mapped[float] = mapped_column(Numeric(14, 2), default=0.0)
+    average_weight: Mapped[float] = mapped_column(Numeric(14, 2), default=0.0)
     
-    purchase_rate: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0)
-    purchase_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    purchase_rate: Mapped[float] = mapped_column(Numeric(14, 2), default=0.0)
+    purchase_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
     
-    cash_payment: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    upi_payment: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    bank_payment: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    balance_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    cash_payment: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
+    upi_payment: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
+    bank_payment: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
+    balance_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
     
     remarks: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False)

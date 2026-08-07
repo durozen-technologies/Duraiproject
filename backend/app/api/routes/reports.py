@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -14,6 +14,8 @@ from ...db.database import get_db
 from ...models.purchase import Purchase
 from ...models.sale import Sale
 from ...models.party import Party
+from ...models.transaction import PaymentTransaction
+from ...models.enums import TransactionType
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape, A4
@@ -53,6 +55,33 @@ def _fmt_weight(value: float) -> str:
 
 def _fmt_rate(value: float) -> str:
     return f"Rs.{_fmt_inr(value)}"
+
+
+def _display_bill_number(bill_number: Optional[str]) -> str:
+    """Show YYYY-00000x without DPS- prefix for report cells."""
+    raw = (bill_number or "").strip()
+    if not raw:
+        return "-"
+    upper = raw.upper()
+    if upper.startswith("DPS-"):
+        raw = raw[4:]
+    return raw or "-"
+
+
+def _bill_no_cell(bill_number: Optional[str], font_size: int = 7):
+    """Paragraph so bill no wraps inside the column instead of overflowing."""
+    text = _display_bill_number(bill_number)
+    if text == "-":
+        return "-"
+    style = ParagraphStyle(
+        "BillNoCell",
+        fontName="Helvetica",
+        fontSize=font_size,
+        leading=font_size + 1,
+        alignment=1,  # CENTER
+    )
+    safe = text.replace("&", "&amp;").replace("<", "&lt;")
+    return Paragraph(safe, style)
 
 
 def _normalize_lang(language: Optional[str]) -> str:
@@ -128,6 +157,98 @@ def _party_name_cell(name: str, language: str, font_size: int = 8):
     )
     safe = (name or "").replace("&", "&amp;").replace("<", "&lt;")
     return Paragraph(safe, style)
+
+
+def _party_nickname(party: Optional[Party]) -> str:
+    if not party:
+        return ""
+    return (getattr(party, "nickname", None) or "").strip()
+
+
+def _party_excel_cell(party: Optional[Party], language: str) -> str:
+    """Party/purchaser name with nickname on the next line (same Excel cell)."""
+    name = _party_display_name(party, language)
+    nick = _party_nickname(party)
+    if nick:
+        return f"{name}\n{nick}"
+    return name
+
+
+def _party_pdf_cell(party: Optional[Party], language: str, font_size: int = 8):
+    """PDF cell: bold party name with nickname underneath."""
+    name = _party_display_name(party, language)
+    nick = _party_nickname(party)
+    use_tamil = language == "ta" or _has_tamil_text(name) or _has_tamil_text(nick)
+    font = _unicode_font_name() if use_tamil else "Helvetica"
+    if not font:
+        font = "Helvetica"
+    safe_name = (name or "Unknown").replace("&", "&amp;").replace("<", "&lt;")
+    if nick:
+        safe_nick = nick.replace("&", "&amp;").replace("<", "&lt;")
+        nick_size = max(font_size - 1, 6)
+        html = (
+            f"<b>{safe_name}</b><br/>"
+            f"<font size='{nick_size}' color='#555555'>{safe_nick}</font>"
+        )
+    else:
+        html = f"<b>{safe_name}</b>"
+    style = ParagraphStyle(
+        "PartyNameNickCell",
+        fontName=font,
+        fontSize=font_size,
+        leading=font_size + 2,
+    )
+    return Paragraph(html, style)
+
+
+def _driver_name_from_row(row) -> str:
+    driver = getattr(row, "driver", None)
+    if driver and (getattr(driver, "name", None) or "").strip():
+        return driver.name.strip()
+    return (getattr(row, "driver_name", None) or "").strip() or "-"
+
+
+def _driver_mobile_from_row(row) -> str:
+    driver = getattr(row, "driver", None)
+    if not driver:
+        return ""
+    return (getattr(driver, "mobile", None) or "").strip()
+
+
+def _driver_excel_cell(row) -> str:
+    """Driver name with mobile on the next line (same Excel cell)."""
+    name = _driver_name_from_row(row)
+    mobile = _driver_mobile_from_row(row)
+    if name == "-":
+        return "-"
+    if mobile:
+        return f"{name}\n{mobile}"
+    return name
+
+
+def _driver_pdf_cell(row, font_size: int = 7):
+    """PDF cell: bold driver name with mobile underneath."""
+    name = _driver_name_from_row(row)
+    mobile = _driver_mobile_from_row(row)
+    if name == "-" and not mobile:
+        return "-"
+    safe_name = (name or "-").replace("&", "&amp;").replace("<", "&lt;")
+    if mobile:
+        safe_mobile = mobile.replace("&", "&amp;").replace("<", "&lt;")
+        mobile_size = max(font_size - 1, 6)
+        html = (
+            f"<b>{safe_name}</b><br/>"
+            f"<font size='{mobile_size}' color='#555555'>{safe_mobile}</font>"
+        )
+    else:
+        html = f"<b>{safe_name}</b>"
+    style = ParagraphStyle(
+        "DriverNameCell",
+        fontName="Helvetica",
+        fontSize=font_size,
+        leading=font_size + 2,
+    )
+    return Paragraph(html, style)
 
 
 def _party_title_paragraph(name: str, language: str, base_style: ParagraphStyle) -> Paragraph:
@@ -207,9 +328,11 @@ def _excel_response(
                 cell.alignment = Alignment(horizontal="right", vertical="center")
                 cell.number_format = "#,##0.00"
             else:
+                wrap = isinstance(value, str) and "\n" in value
                 cell.alignment = Alignment(
-                    horizontal="left" if c_idx == 2 else "center",
+                    horizontal="left" if c_idx in (2, 5) else "center",
                     vertical="center",
+                    wrap_text=wrap,
                 )
 
     next_row = header_row + 1 + len(rows) + 1
@@ -256,7 +379,10 @@ async def generate_purchase_report(
 ):
     lang = _normalize_lang(language)
     export_fmt = _normalize_export_format(format)
-    query = select(Purchase).options(selectinload(Purchase.party)).where(
+    query = select(Purchase).options(
+        selectinload(Purchase.party),
+        selectinload(Purchase.driver),
+    ).where(
         and_(Purchase.date >= from_date, Purchase.date <= to_date)
     ).order_by(Purchase.date)
     
@@ -285,10 +411,10 @@ async def generate_purchase_report(
             upi = float(p.upi_payment or 0)
             excel_rows.append([
                 p.date.strftime("%d-%m-%Y") if p.date else "-",
-                _party_display_name(p.party, lang),
+                _party_excel_cell(p.party, lang),
                 p.vehicle_number or "-",
-                p.bill_number or "-",
-                p.driver_name or "-",
+                _display_bill_number(p.bill_number),
+                _driver_excel_cell(p),
                 int(p.total_boxes or 0),
                 birds,
                 float(p.weighbridge_weight or 0),
@@ -354,14 +480,13 @@ async def generate_purchase_report(
         # Calculate Total Paid dynamically
         total_paid_val = (p.cash_payment or 0) + (p.upi_payment or 0)
         total_paid = f"{total_paid_val:,.2f}"
-        party_name = _party_display_name(p.party, lang)
         
         row = [
             p.date.strftime('%d-%m-%Y') if p.date else "-",
-            _party_name_cell(party_name, lang),
+            _party_pdf_cell(p.party, lang, font_size=8),
             p.vehicle_number or "-",
-            p.bill_number or "-",
-            p.driver_name or "-",
+            _bill_no_cell(p.bill_number, font_size=8),
+            _driver_pdf_cell(p, font_size=8),
             str(p.total_boxes) if p.total_boxes else "0",
             str(p.actual_birds) if p.actual_birds else "0",
             f"{p.weighbridge_weight:.2f}" if p.weighbridge_weight else "0.00",
@@ -452,7 +577,10 @@ async def generate_sale_report(
 ):
     lang = _normalize_lang(language)
     export_fmt = _normalize_export_format(format)
-    query = select(Sale).options(selectinload(Sale.party)).where(
+    query = select(Sale).options(
+        selectinload(Sale.party),
+        selectinload(Sale.driver),
+    ).where(
         and_(Sale.date >= from_date, Sale.date <= to_date)
     ).order_by(Sale.date)
     
@@ -485,10 +613,10 @@ async def generate_sale_report(
             upi = float(s.upi_payment or 0)
             excel_rows.append([
                 s.date.strftime("%d-%m-%Y") if s.date else "-",
-                _party_display_name(s.party, lang),
+                _party_excel_cell(s.party, lang),
                 s.vehicle_number or "-",
-                s.bill_number or "-",
-                s.driver_name or "-",
+                _display_bill_number(s.bill_number),
+                _driver_excel_cell(s),
                 float(s.weighbridge_weight or 0),
                 net_wt,
                 wt_rate_val,
@@ -554,14 +682,13 @@ async def generate_sale_report(
         balance = f"{float(s.balance_amount or 0):,.2f}"
         total_paid_val = float(s.cash_payment or 0) + float(s.upi_payment or 0)
         total_paid = f"{total_paid_val:,.2f}"
-        party_name = _party_display_name(s.party, lang)
         
         row = [
             s.date.strftime('%d-%m-%Y') if s.date else "-",
-            _party_name_cell(party_name, lang, font_size=7),
+            _party_pdf_cell(s.party, lang, font_size=7),
             s.vehicle_number or "-",
-            s.bill_number or "-",
-            s.driver_name or "-",
+            _bill_no_cell(s.bill_number, font_size=7),
+            _driver_pdf_cell(s, font_size=7),
             f"{float(s.weighbridge_weight or 0):.2f}",
             f"{net_wt:.2f}",
             f"{wt_rate_val:,.2f}",
@@ -584,14 +711,14 @@ async def generate_sale_report(
     usable_width = 812
     t._argW = [
         usable_width * 0.055,  # Date
-        usable_width * 0.09,   # Party Name
+        usable_width * 0.085,  # Party Name
         usable_width * 0.055,  # Vehicle No
-        usable_width * 0.055,  # Bill No
+        usable_width * 0.07,   # Bill No (YYYY-000001)
         usable_width * 0.06,   # Driver Name
         usable_width * 0.055,  # Weighbridge
         usable_width * 0.05,   # Net Weight
         usable_width * 0.05,   # Wt Rate
-        usable_width * 0.06,   # Net Wt Amount
+        usable_width * 0.055,  # Net Wt Amount
         usable_width * 0.035,  # Box
         usable_width * 0.05,   # Box Rate
         usable_width * 0.055,  # Box Amount
@@ -643,6 +770,44 @@ async def generate_sale_report(
     )
 
 
+def _balance_suffix(amount: float) -> str:
+    return "Cr" if amount >= 0 else "Dr"
+
+
+def _fmt_balance(amount: float) -> str:
+    return f"Rs.{_fmt_inr(abs(amount))} {_balance_suffix(amount)}"
+
+
+async def _party_payment_net(
+    db: AsyncSession,
+    party_id: UUID,
+    *,
+    before: Optional[date] = None,
+    from_date: Optional[date] = None,
+    to_date: Optional[date] = None,
+) -> float:
+    """Net payments that reduce credit balance: PAID − RECEIVED."""
+    async def _sum_type(txn_type: TransactionType) -> float:
+        filters = [
+            PaymentTransaction.party_id == party_id,
+            PaymentTransaction.type == txn_type,
+        ]
+        if before is not None:
+            filters.append(PaymentTransaction.date < before)
+        if from_date is not None:
+            filters.append(PaymentTransaction.date >= from_date)
+        if to_date is not None:
+            filters.append(PaymentTransaction.date <= to_date)
+        result = await db.execute(
+            select(func.coalesce(func.sum(PaymentTransaction.total_amount), 0)).where(and_(*filters))
+        )
+        return float(result.scalar() or 0)
+
+    paid = await _sum_type(TransactionType.PAID)
+    received = await _sum_type(TransactionType.RECEIVED)
+    return paid - received
+
+
 @router.get("/party-ledger")
 async def generate_party_ledger_report(
     party_id: UUID,
@@ -659,6 +824,24 @@ async def generate_party_ledger_report(
     party = party_result.scalar_one_or_none()
     if not party:
         raise HTTPException(status_code=404, detail="Party not found")
+
+    # Prior-period invoices + payments before from_date, plus party opening
+    # e.g. opening 1000 + July invoices net − July paid = statement opening for Aug
+    prior_credit_result = await db.execute(
+        select(func.coalesce(func.sum(Purchase.purchase_amount), 0)).where(
+            and_(Purchase.party_id == party_id, Purchase.date < from_date)
+        )
+    )
+    prior_debit_result = await db.execute(
+        select(func.coalesce(func.sum(Sale.total_invoice_amount), 0)).where(
+            and_(Sale.party_id == party_id, Sale.date < from_date)
+        )
+    )
+    prior_credit = float(prior_credit_result.scalar() or 0)
+    prior_debit = float(prior_debit_result.scalar() or 0)
+    prior_paid_net = await _party_payment_net(db, party_id, before=from_date)
+    party_opening = float(party.opening_balance or 0)
+    opening_balance = party_opening + (prior_credit - prior_debit) - prior_paid_net
 
     purchases_result = await db.execute(
         select(Purchase)
@@ -716,12 +899,18 @@ async def generate_party_ledger_report(
     total_credit = sum(r["credit"] for r in rows)
     total_debit = sum(r["debit"] for r in rows)
     difference = total_credit - total_debit
-    closing_suffix = "Cr" if difference >= 0 else "Dr"
+    # Period payments (PAID − RECEIVED); subtracted from opening + difference
+    paid_amount = await _party_payment_net(db, party_id, from_date=from_date, to_date=to_date)
+    # Closing must match the party's live current balance
+    closing_balance = float(party.current_balance or 0)
 
     display_name = _party_display_name(party, lang)
     date_label = f"{from_date.strftime('%d-%m-%Y')} to {to_date.strftime('%d-%m-%Y')}"
     safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in (party.name or "party"))[:40]
     file_stem = f"party_ledger_{safe_name}_{from_date.strftime('%Y%m%d')}_{to_date.strftime('%Y%m%d')}"
+    opening_label = _fmt_balance(opening_balance)
+    closing_label = _fmt_balance(closing_balance)
+    paid_label = f"Rs.{_fmt_inr(paid_amount)}"
 
     if export_fmt == "xlsx":
         headers = ["Date", "Type", "Net Weight (Kg)", "Rate (Rs.)", "Credit (Rs.)", "Debit (Rs.)"]
@@ -737,13 +926,15 @@ async def generate_party_ledger_report(
                 round(float(r["debit"]), 2) if not is_purchase else 0,
             ])
         summary = [
+            ["", "", "", "Opening Balance", opening_label, ""],
             ["", "", "", "Total Credit", round(total_credit, 2), ""],
             ["", "", "", "Total Debit", "", round(total_debit, 2)],
             ["", "", "", "Difference", round(difference, 2), ""],
-            ["", "", "", "Closing Balance", f"{_fmt_inr(abs(difference))} {closing_suffix}", ""],
+            ["", "", "", "Paid Amount", round(paid_amount, 2), ""],
+            ["", "", "", "Closing Balance", closing_label, ""],
         ]
         return _excel_response(
-            title=f"{display_name} — Party Ledger ({date_label})",
+            title=f"{display_name} — Party Ledger ({date_label}) | Opening Balance: {opening_label}",
             headers=headers,
             rows=excel_rows,
             filename=f"{file_stem}.xlsx",
@@ -783,17 +974,23 @@ async def generate_party_ledger_report(
         alignment=1,
         fontSize=11,
         textColor=colors.HexColor("#444444"),
-        spaceAfter=16,
+        spaceAfter=8,
+    )
+    opening_style = ParagraphStyle(
+        "PartyLedgerOpening",
+        parent=styles["Normal"],
+        alignment=2,  # RIGHT — above table header, right corner
+        fontSize=11,
+        textColor=colors.HexColor("#111111"),
+        spaceAfter=10,
     )
 
     elements = []
     elements.append(_party_title_paragraph(display_name, lang, title_style))
     elements.append(Paragraph("Party Ledger Statement", subtitle_style))
+    elements.append(Paragraph(date_label, range_style))
     elements.append(
-        Paragraph(
-            date_label,
-            range_style,
-        )
+        Paragraph(f"<b>Opening Balance:</b> {opening_label}", opening_style)
     )
 
     table_data = [
@@ -864,19 +1061,21 @@ async def generate_party_ledger_report(
         ["Total Credit", f"Rs.{_fmt_inr(total_credit)}"],
         ["Total Debit", f"Rs.{_fmt_inr(total_debit)}"],
         ["Difference (Credit - Debit)", f"Rs.{_fmt_inr(difference)}"],
-        ["Closing Balance", f"Rs.{_fmt_inr(abs(difference))} {closing_suffix}"],
+        ["Paid Amount", paid_label],
+        ["Closing Balance", closing_label],
     ]
     summary_table = Table(summary_data, colWidths=[usable_width * 0.35, usable_width * 0.25])
     summary_table.hAlign = "RIGHT"
     summary_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (0, 2), colors.HexColor("#efefef")),
-                ("BACKGROUND", (0, 3), (-1, 3), colors.HexColor("#d9edf7")),
+                ("BACKGROUND", (0, 0), (0, 3), colors.HexColor("#efefef")),
                 ("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#f8f8f8")),
+                ("BACKGROUND", (0, 3), (-1, 3), colors.HexColor("#fff8e8")),
+                ("BACKGROUND", (0, 4), (-1, 4), colors.HexColor("#d9edf7")),
                 ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 2), 10),
-                ("FONTSIZE", (0, 3), (-1, 3), 12),
+                ("FONTSIZE", (0, 0), (-1, 3), 10),
+                ("FONTSIZE", (0, 4), (-1, 4), 12),
                 ("ALIGN", (1, 0), (1, -1), "RIGHT"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("TOPPADDING", (0, 0), (-1, -1), 8),

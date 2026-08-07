@@ -29,22 +29,14 @@ export default function PartySearchDropdown({
 
   const selectedLabel = isAllSelected
     ? allOptionLabel
-    : selectedParty
-      ? selectedParty.nickname
-        ? `${selectedParty.name} (${selectedParty.nickname})`
-        : selectedParty.name
-      : '';
+    : selectedParty?.name || '';
 
   useEffect(() => {
     if (!isFocused) {
       if (isAllSelected) {
         setSearchText(allOptionLabel || '');
       } else if (selectedParty) {
-        setSearchText(
-          selectedParty.nickname
-            ? `${selectedParty.name} (${selectedParty.nickname})`
-            : selectedParty.name || '',
-        );
+        setSearchText(selectedParty.name || '');
       } else if (!valueStr) {
         setSearchText('');
       }
@@ -101,9 +93,9 @@ export default function PartySearchDropdown({
             <Text className="text-sm font-bold text-gray-900" numberOfLines={2}>
               {selectedLabel}
             </Text>
-            {!isAllSelected && selectedParty?.tamil_name ? (
-              <Text className="text-[11px] text-gray-500 mt-0.5" numberOfLines={1}>
-                {selectedParty.tamil_name}
+            {!isAllSelected && selectedParty?.nickname ? (
+              <Text className="text-xs text-gray-500 mt-0.5" numberOfLines={1}>
+                {selectedParty.nickname}
               </Text>
             ) : null}
           </TouchableOpacity>
@@ -186,26 +178,18 @@ export default function PartySearchDropdown({
                   key={partyId(party)}
                   className="px-3 py-2.5 border-b border-gray-100 active:bg-[#e8f3ee] flex-row justify-between items-center"
                   onPress={() => {
-                    const label = party.nickname
-                      ? `${party.name} (${party.nickname})`
-                      : party.name;
-                    setSearchText(label);
+                    setSearchText(party.name || '');
                     onSelect(partyId(party));
                     setIsFocused(false);
                   }}
                 >
                   <View className="flex-1 pr-2">
-                    <Text className="text-sm font-semibold text-gray-900" numberOfLines={2}>
+                    <Text className="text-sm font-bold text-gray-900" numberOfLines={2}>
                       {party.name}
                     </Text>
                     {party.nickname ? (
                       <Text className="text-xs text-gray-500 mt-0.5" numberOfLines={1}>
                         {party.nickname}
-                      </Text>
-                    ) : null}
-                    {party.tamil_name ? (
-                      <Text className="text-[11px] text-gray-400 mt-0.5" numberOfLines={1}>
-                        {party.tamil_name}
                       </Text>
                     ) : null}
                   </View>

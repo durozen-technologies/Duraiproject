@@ -989,3 +989,9 @@ I have completely redesigned the Expenses section! It is now a perfectly aligned
 ### [2026-08-07 00:08:00] 
 **User:** make the test file all the data are store and accessing proper, make do it
 **Agent:** Created and ran a backend script (\	est_driver.py\) to automatically test the API endpoints. It successfully creates a driver (without the optional nickname field) and retrieves the list of drivers, confirming that the data is stored and accessed properly.
+
+### [2026-08-07 09:37:55] Type Error Fixes in billEntryCalc.ts
+- Tools Run:
+  - view_file on billEntryCalc.ts
+  - multi_replace_file_content to fix type signatures.
+- Rationale: The utility functions internally handle null and undefined via parseNum, but the TypeScript signatures were overly strict. Updating the signatures fixed the TypeScript compiler errors when passing optional number | null properties.

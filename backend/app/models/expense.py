@@ -28,9 +28,9 @@ class Expense(Base, BaseModelMixin):
     spent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     expense_name: Mapped[str] = mapped_column(String(255), nullable=False)
     
-    cash_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    upi_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    total_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    cash_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
+    upi_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
+    total_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
     
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     day_bill_id: Mapped[UUID | None] = mapped_column(ForeignKey("day_bills.id"), nullable=True, index=True)

@@ -15,5 +15,5 @@ class PaymentAllocation(Base, BaseModelMixin):
     purchase_id: Mapped[UUID | None] = mapped_column(ForeignKey("purchases.id", ondelete="SET NULL"), nullable=True, index=True)
     sale_id: Mapped[UUID | None] = mapped_column(ForeignKey("sales.id", ondelete="SET NULL"), nullable=True, index=True)
     
-    allocated_cash: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    allocated_upi: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    allocated_cash: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
+    allocated_upi: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)

@@ -19,11 +19,11 @@ class PaymentTransaction(Base, BaseModelMixin):
     
     type: Mapped[TransactionType] = mapped_column(Enum(TransactionType), nullable=False)
     
-    cash_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    upi_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    bank_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    total_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    cash_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
+    upi_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
+    bank_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
+    total_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
     # Amount of this payment applied toward unpaid_opening_balance (for revert)
-    opening_applied: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    opening_applied: Mapped[float] = mapped_column(Numeric(18, 2), default=0.0)
 
     party = relationship("Party", back_populates="transactions")

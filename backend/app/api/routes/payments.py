@@ -54,6 +54,61 @@ async def _opening_applied_total(db: AsyncSession, party_id: UUID) -> float:
     return round(float(result.scalar() or 0), 2)
 
 
+def _correct_unpaid_opening(party: Party) -> float:
+    """
+    Unpaid opening after bills-first collections:
+    CR: min(opening, current) — opening only reduces once bill portion is cleared
+    DR: max(opening, current)
+    """
+    opening = round(float(party.opening_balance or 0), 2)
+    current = round(float(party.current_balance or 0), 2)
+    if opening >= 0 and current >= 0:
+        return round(min(opening, current), 2)
+    if opening <= 0 and current <= 0:
+        return round(max(opening, current), 2)
+    return 0.0
+
+
+async def repair_party_opening_settlement(db: AsyncSession, party: Party) -> bool:
+    """
+    Rebuild unpaid_opening + opening_applied so only amounts beyond bill
+    balances count as settled against opening (fixes legacy opening-first applies).
+    """
+    opening = round(float(party.opening_balance or 0), 2)
+    correct_unpaid = _correct_unpaid_opening(party)
+    settled_needed = round(abs(opening - correct_unpaid), 2)
+
+    result = await db.execute(
+        select(PaymentTransaction)
+        .where(PaymentTransaction.party_id == party.id)
+        .order_by(PaymentTransaction.date.asc(), PaymentTransaction.created_at.asc())
+    )
+    txns = list(result.scalars().all())
+    old_settled = round(sum(float(t.opening_applied or 0) for t in txns), 2)
+    old_unpaid = round(float(party.unpaid_opening_balance or 0), 2)
+
+    if old_settled == settled_needed and old_unpaid == correct_unpaid:
+        return False
+
+    for txn in txns:
+        txn.opening_applied = 0.0
+
+    remaining = settled_needed
+    # Newest payments are the ones that reached opening after bills were covered
+    for txn in reversed(txns):
+        if remaining <= 0:
+            break
+        capacity = round(float(txn.total_amount or 0), 2)
+        if capacity <= 0:
+            continue
+        take = round(min(remaining, capacity), 2)
+        txn.opening_applied = take
+        remaining = round(remaining - take, 2)
+
+    party.unpaid_opening_balance = correct_unpaid
+    return True
+
+
 def _reconcile_unpaid_opening(party: Party, paid_abs: float) -> None:
     """Set unpaid_opening = opening − remaining collection applied to opening."""
     opening = round(float(party.opening_balance or 0), 2)
@@ -63,9 +118,14 @@ def _reconcile_unpaid_opening(party: Party, paid_abs: float) -> None:
 
 
 def _apply_collection_to_party(party: Party, total: float) -> tuple[TransactionType, float]:
-    """Move party.current_balance toward zero by total. Returns (txn_type, opening_applied)."""
-    balance = float(party.current_balance)
+    """
+    Move party.current_balance toward zero by total.
+    Apply to bill balances first; only leftover reduces opening (unpaid_opening).
+    Returns (txn_type, opening_applied).
+    """
+    balance = round(float(party.current_balance or 0), 2)
     outstanding = abs(balance)
+    total = round(float(total or 0), 2)
 
     if balance == 0:
         raise HTTPException(status_code=400, detail="Party has no outstanding balance")
@@ -76,25 +136,33 @@ def _apply_collection_to_party(party: Party, total: float) -> tuple[TransactionT
             detail=f"Payment amount ({total}) exceeds party's outstanding balance ({outstanding})",
         )
 
-    unpaid = float(party.unpaid_opening_balance or 0)
+    unpaid = round(float(party.unpaid_opening_balance or 0), 2)
     opening_applied = 0.0
 
     if balance > 0:
-        # To Pay (CR)
+        # To Pay (CR): clear purchase/bill portion before opening
         txn_type = TransactionType.PAID
-        party.current_balance = balance - total
+        unpaid_cr = max(unpaid, 0.0)
+        bill_outstanding = max(round(balance - unpaid_cr, 2), 0.0)
+        applied_to_bills = min(total, bill_outstanding)
+        remainder = round(total - applied_to_bills, 2)
+        opening_applied = min(remainder, unpaid_cr) if unpaid > 0 else 0.0
+        party.current_balance = round(balance - total, 2)
         if unpaid > 0:
-            opening_applied = min(total, unpaid)
-            party.unpaid_opening_balance = unpaid - opening_applied
+            party.unpaid_opening_balance = round(unpaid_cr - opening_applied, 2)
     else:
-        # To Receive (DR)
+        # To Receive (DR): clear sale/bill portion before opening
         txn_type = TransactionType.RECEIVED
-        party.current_balance = balance + total
+        unpaid_dr = abs(unpaid) if unpaid < 0 else 0.0
+        bill_outstanding = max(round(abs(balance) - unpaid_dr, 2), 0.0)
+        applied_to_bills = min(total, bill_outstanding)
+        remainder = round(total - applied_to_bills, 2)
+        opening_applied = min(remainder, unpaid_dr) if unpaid < 0 else 0.0
+        party.current_balance = round(balance + total, 2)
         if unpaid < 0:
-            opening_applied = min(total, abs(unpaid))
-            party.unpaid_opening_balance = unpaid + opening_applied
+            party.unpaid_opening_balance = round(unpaid + opening_applied, 2)
 
-    return txn_type, opening_applied
+    return txn_type, round(opening_applied, 2)
 
 
 def _revert_collection_from_party(party: Party, txn: PaymentTransaction) -> None:
@@ -119,6 +187,9 @@ async def process_collection_payment(
 
     if not party:
         raise HTTPException(status_code=404, detail="Party not found")
+
+    # Fix legacy opening-first settlements before applying this payment
+    await repair_party_opening_settlement(db, party)
 
     total_payment = float(request.cash_amount or 0) + float(request.upi_amount or 0) + float(request.bank_amount or 0)
 
@@ -208,9 +279,8 @@ async def delete_collection_payment(
 
     await db.delete(txn)
     await db.flush()
-    # After delete, rebuild unpaid opening from remaining payments (fixes floor after delete)
-    paid_abs = await _opening_applied_total(db, party.id)
-    _reconcile_unpaid_opening(party, paid_abs)
+    # Rebuild bills-first opening settlement from remaining payments
+    await repair_party_opening_settlement(db, party)
 
     await db.commit()
 
@@ -232,9 +302,11 @@ async def update_collection_payment(
     party_res = await db.execute(select(Party).where(Party.id == txn.party_id))
     party = party_res.scalar_one()
 
-    # Revert old payment, then apply new amounts against restored balance
+    # Revert old payment first (uses existing opening_applied), then repair + re-apply
     _revert_collection_from_party(party, txn)
     await db.flush()
+
+    await repair_party_opening_settlement(db, party)
 
     total_payment = float(request.cash_amount or 0) + float(request.upi_amount or 0) + float(request.bank_amount or 0)
     if total_payment <= 0:

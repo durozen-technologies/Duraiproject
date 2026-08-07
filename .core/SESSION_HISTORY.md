@@ -931,3 +931,7 @@ px tsc --noEmit and found compilation errors. Removed invalid onClick properties
 - Request: make the test file all the data are store and accessing proper, make do it
 - Action: Wrote 	est_driver.py in the backend directory to test the POST and GET /api/drivers/ endpoints. Verified that the Driver data (specifically after removing the 
 ickname field in the frontend form) is being properly saved and returned by the server. The script executed successfully.
+
+### [2026-08-07 09:24:33] Type Error Fixes in billEntryCalc.ts
+- User Request: Fix type errors in billEntryCalc.ts
+- Action Taken: Updated utility function signatures to accept string | number | null | undefined.
